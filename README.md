@@ -5,6 +5,7 @@ Create FLAC audio with CUE sheet resolved CDDB from CD.
 
 This script resolve CD Infomation by using following CDDB servers:
 
+* MusicBrainz (https://musicbrainz.org/ws/2/)
 * freedbtest.dyndns.org
 * gnudb.gnudb.org
 * freedb.dbpoweramp.com
