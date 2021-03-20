@@ -17,6 +17,10 @@ Dependency
 * flac
 * metaflac
 * cueconvert (cuetools)
+* cd-discid
+* openssl
+* base64
+* xmllint
 
 Usage
 =====
