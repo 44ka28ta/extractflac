@@ -13,7 +13,7 @@ show_help() {
 ARTIST=''
 ALBUM=''
 
-fix_toc_and_convert_cue_and_get_info() {
+fix_toc_and_convert_cue() {
 
 	sed -i '/TOC_INFO1/d' $1.toc # Remove except syntax
 	sed -i '/UPC_EAN/d' $1.toc # Remove except syntax
@@ -23,19 +23,23 @@ fix_toc_and_convert_cue_and_get_info() {
 	sed -E -i '/SIZE_INFO \{/{:a;N;/\}/!ba};/SIZE_INFO \{.*\}/d' $1.toc
 	sed -E -i '/LANGUAGE [0-9]+ \{/{:a;N;/\}/!ba};s/\s+ISRC "[^"]+"//' $1.toc # Remove duplicated ISRC in LANGUAGE block
 	cueconvert $1.toc $1.cue
-
-	ARTIST=`head -n 3 ${SAVE_PATH}/${DUMPFILENAME}.cue | grep "PERFORMER" | sed -E 's/PERFORMER\ |"//g'`
-	ALBUM=`head -n 3 ${SAVE_PATH}/${DUMPFILENAME}.cue | grep "TITLE" | sed -E 's/TITLE\ |"//g'`
 }
 
+get_artist_and_album_from_cue() {
 
-# Fix octal code point of unicode in CUE Sheet
+	ARTIST=`head -n 5 \1 | grep "PERFORMER" | sed -E 's/PERFORMER\ |"//g'`
+	ALBUM=`head -n 5 \1 | grep "TITLE" | sed -E 's/TITLE\ |"//g'`
+	DATE=`head -n 5 \1 | grep "REM DATE" | sed -E 's/REM\ DATE\ |"//g'`
+}
+
 
 OPTINT=1
 
 SAVE_PATH=`pwd`
 DEVICE_FILE=""
 ARTIST_ALBUM_DIR_OPTION=0
+
+SCRIPT_PARENT=`dirname ${0}`
 
 while getopts "h?ps:d:" opt; do
 	case "${opt}" in
@@ -66,36 +70,53 @@ DUMPFILENAME=`basename ${DEVICE_FILE}``cat /dev/urandom | tr -dc 'a-zA-Z0-9' | f
 
 echo "[INFO] 1/6: Extract CD to ${SAVE_PATH}/${DUMPFILENAME}"
 
-cdrdao read-cd --device ${DEVICE_FILE} --with-cddb --cddb-servers "freedbtest.dyndns.org:/~cddb/cddbutf8.cgi" --datafile ${SAVE_PATH}/${DUMPFILENAME}.{bin,toc}
+cdrdao read-cd --device ${DEVICE_FILE} --datafile ${SAVE_PATH}/${DUMPFILENAME}.{bin,toc}
 
-printf "$(cat ${SAVE_PATH}/${DUMPFILENAME}.toc)\n" > ${SAVE_PATH}/${DUMPFILENAME}.toc
+fix_toc_and_convert_cue ${SAVE_PATH}/${DUMPFILENAME}
 
-echo "[INFO] 2/6: Convert TOC to CUESheet"
+echo "[INFO] 2/6: Convert TOC to CUESheet (by MusicBrainz)"
 
-fix_toc_and_convert_cue_and_get_info ${SAVE_PATH}/${DUMPFILENAME}
+sh ${SCRIPT_PARENT}/getmusicbrainz.sh -d ${DEVICE_FILE} -c ${SAVE_PATH}/${DUMPFILENAME}.cue
 
-if [ -z "${ARTIST}" ]; then
+if [ $? -ne 0 ]; then
 
-	echo "[INFO] 2/6: Convert TOC to CUESheet: Does not hit, 1st Reloading ..."
+	cdrdao read-cddb --cddb-servers "freedbtest.dyndns.org:/~cddb/cddbutf8.cgi" ${SAVE_PATH}/${DUMPFILENAME}.toc
 
-	rm ${SAVE_PATH}/${DUMPFILENAME}.{toc,cue}
-	cdrdao read-toc --device ${DEVICE_FILE} --with-cddb --cddb-servers "gnudb.gnudb.org:/~cddb/cddb.cgi" ${SAVE_PATH}/${DUMPFILENAME}.toc
+	printf "$(cat ${SAVE_PATH}/${DUMPFILENAME}.toc)\n" > ${SAVE_PATH}/${DUMPFILENAME}.toc # Fix octal code point of unicode in CUE Sheet
 
-	fix_toc_and_convert_cue_and_get_info ${SAVE_PATH}/${DUMPFILENAME}
+	echo "[INFO] 2/6: Convert TOC to CUESheet"
+
+	fix_toc_and_convert_cue ${SAVE_PATH}/${DUMPFILENAME}
+
+	get_artist_and_album_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue
 
 	if [ -z "${ARTIST}" ]; then
 
-		echo "[INFO] 2/6: Convert TOC to CUESheet: Does not hit, 2nd Reloading ..."
+		echo "[INFO] 2/6: Convert TOC to CUESheet: Does not hit, 1st Reloading ..."
 
-		rm ${SAVE_PATH}/${DUMPFILENAME}.{toc,cue}
-		cdrdao read-toc --device ${DEVICE_FILE} --with-cddb --cddb-servers "freedb.dbpoweramp.com:/~cddb/cddb.cgi" ${SAVE_PATH}/${DUMPFILENAME}.toc
+		cdrdao read-cddb --cddb-servers "gnudb.gnudb.org:/~cddb/cddb.cgi" ${SAVE_PATH}/${DUMPFILENAME}.toc
 
-		fix_toc_and_convert_cue_and_get_info ${SAVE_PATH}/${DUMPFILENAME}
+		fix_toc_and_convert_cue ${SAVE_PATH}/${DUMPFILENAME}
+
+		get_artist_and_album_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue
 
 		if [ -z "${ARTIST}" ]; then
 
-			ARTIST='NoName'
-			ALBUM='NoTitle'
+			echo "[INFO] 2/6: Convert TOC to CUESheet: Does not hit, 2nd Reloading ..."
+
+			cdrdao read-cddb --cddb-servers "freedb.dbpoweramp.com:/~cddb/cddb.cgi" ${SAVE_PATH}/${DUMPFILENAME}.toc
+
+			fix_toc_and_convert_cue ${SAVE_PATH}/${DUMPFILENAME}
+
+			get_artist_and_album_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue
+
+			if [ -z "${ARTIST}" ]; then
+
+				ARTIST='NoName'
+				ALBUM='NoTitle'
+			else
+				echo "[INFO] 2/6: Fetched Data; Artist: ${ARTIST}, Album: ${ALBUM}"
+			fi
 		else
 			echo "[INFO] 2/6: Fetched Data; Artist: ${ARTIST}, Album: ${ALBUM}"
 		fi
@@ -103,7 +124,7 @@ if [ -z "${ARTIST}" ]; then
 		echo "[INFO] 2/6: Fetched Data; Artist: ${ARTIST}, Album: ${ALBUM}"
 	fi
 else
-	echo "[INFO] 2/6: Fetched Data; Artist: ${ARTIST}, Album: ${ALBUM}"
+	get_artist_and_album_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue
 fi
 
 FLACFILENAME="${ARTIST} - ${ALBUM}"
@@ -119,7 +140,13 @@ echo "[INFO] 4/6: Compress WAV with FLAC"
 
 flac --best --cuesheet="${SAVE_PATH}/${FLACFILENAME}.cue" "${SAVE_PATH}/${FLACFILENAME}.wav"
 
+#
+# put Vorbis comment
+#
 metaflac --set-tag-from-file="CUESHEET=${SAVE_PATH}/${FLACFILENAME}.cue" "${SAVE_PATH}/${FLACFILENAME}.flac"
+metaflac --set-tag="ARTIST=${ARTIST}" "${SAVE_PATH}/${FLACFILENAME}.flac"
+metaflac --set-tag="ALBUM=${ALBUM}" "${SAVE_PATH}/${FLACFILENAME}.flac"
+metaflac --set-tag="DATE=${DATE}" "${SAVE_PATH}/${FLACFILENAME}.flac"
 
 echo "[INFO] 5/6: Finalize temporarl data"
 
