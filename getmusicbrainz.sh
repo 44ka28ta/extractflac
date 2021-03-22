@@ -257,7 +257,7 @@ SELECTEDDATE=`echo ${RELEASEDATES[${SELECTEDNUMBER}]} | sed -E "s/^.*([0-9][0-9]
 
 if ! [[ -z "${SELECTEDDATE}" ]] ; then
 
-	echo "REM DATE \"${SELECTEDDATE}\"" >> ${TARGET_CUE_PATH}
+	echo "REM DATE ${SELECTEDDATE}" >> ${TARGET_CUE_PATH}
 fi
 #echo "CDDB \"${CDDBENTITY}\"" >> ${TARGET_CUE_PATH}
 
