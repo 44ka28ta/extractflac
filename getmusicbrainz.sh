@@ -113,6 +113,10 @@ DISCNUMBERS=()
 
 get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:disc[@id=\"${DISCID}\"]/ancestor::defaultns:medium/defaultns:position" "^\s*<position>" "<\/position>" DISCNUMBERS
 
+TOTALDISCS=()
+
+get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:disc[@id=\"${DISCID}\"]/ancestor::defaultns:medium-list/@count" "^\s*count=\"" "\"" TOTALDISCS
+
 RELEASEDATES=()
 
 get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:disc[@id=\"${DISCID}\"]/ancestor::defaultns:release/defaultns:date" "^\s*<date>" "<\/date>" RELEASEDATES
@@ -137,7 +141,14 @@ fi
 
 for INDEX in `seq 0 ${UPPERBOUNDINDEX}`; do
 
-	echo "[${INDEX}]: ${ARTISTS[${INDEX}]} - ${ALBUMTITLES[${INDEX}]} Disc ${DISCNUMBERS[${INDEX}]}  (Release: ${RELEASEDATES[${INDEX}]} Country: ${COUNTRIES[${INDEX}]} ID: ${RELEASEIDS[${INDEX}]})"
+	TOTALDISCNUMBER=$((${TOTALDISCS[${INDEX}]}))
+
+	if [ -z "${DISCNUMBERS[${INDEX}]}" ] || [ -z ${TOTALDISCNUMBER} ] || [ ${TOTALDISCNUMBER} -lt 2 ]; then
+
+		echo "[${INDEX}]: ${ARTISTS[${INDEX}]} - ${ALBUMTITLES[${INDEX}]} (Release: ${RELEASEDATES[${INDEX}]} Country: ${COUNTRIES[${INDEX}]} ID: ${RELEASEIDS[${INDEX}]})"
+	else
+		echo "[${INDEX}]: ${ARTISTS[${INDEX}]} - ${ALBUMTITLES[${INDEX}]} Disc ${DISCNUMBERS[${INDEX}]}  (Release: ${RELEASEDATES[${INDEX}]} Country: ${COUNTRIES[${INDEX}]} ID: ${RELEASEIDS[${INDEX}]})"
+	fi
 done
 
 echo -n "please select the number of album title: "
@@ -160,8 +171,6 @@ elif [ "${SELECTEDNUMBER}" -lt 0 ]; then
 	echo "Less than bounds. Force to select 0." >&2
 	SELECTEDNUMBER=0
 fi
-
-${ARTISTS[${INDEX}]} - ${ALBUMTITLES[${INDEX}]}
 
 if [ -z "${ARTISTS[${SELECTEDNUMBER}]}" ] || [ -z "${ALBUMTITLES[${SELECTEDNUMBER}]}" ]; then
 
@@ -215,8 +224,6 @@ while read LINE; do
 		PERFORMERCNT=$((PERFORMERCNT+1))
 	fi
 
-	echo ${LINE}
-
 done < ${TARGET_CUE_PATH}
 
 if [ ${FILECNT} -ne 1 ] || [ ${TRACKCNT} -ne ${INDEXCNT} ] || [ ${TRACKCNT} -ne ${#TRACKNUMBERS[@]} ] || [ ${TITLECNT} -gt 0 ] || [ ${PERFORMERCNT} -gt 0 ]; then
@@ -231,18 +238,40 @@ if [ -z "${CATALOGS[${SELECTEDNUMBER}]}" ]; then
 
 	echo -n "" > ${TARGET_CUE_PATH}
 else
-	echo "CATALOG \"${CATALOGS[${SELECTEDNUMBER}]}\"" > ${TARGET_CUE_PATH}
+	MODCATALOGS=`printf "%013d" ${CATALOGS[${SELECTEDNUMBER}]}`
+	echo "CATALOG ${MODCATALOGS}" > ${TARGET_CUE_PATH}
 fi
 
-echo "TITLE \"${ALBUMTITLES[${SELECTEDNUMBER}]}\"" >> ${TARGET_CUE_PATH}
-echo "PERFORMER \"${ARTISTS[${SELECTEDNUMBER}]}\"" >> ${TARGET_CUE_PATH}
+if ! [[ -z "${ALBUMTITLES[${SELECTEDNUMBER}]}" ]] ; then
+
+	echo "TITLE \"${ALBUMTITLES[${SELECTEDNUMBER}]}\"" >> ${TARGET_CUE_PATH}
+fi
+
+if ! [[ -z "${ARTISTS[${SELECTEDNUMBER}]}" ]] ; then
+
+	echo "PERFORMER \"${ARTISTS[${SELECTEDNUMBER}]}\"" >> ${TARGET_CUE_PATH}
+fi
 
 SELECTEDDATE=`echo ${RELEASEDATES[${SELECTEDNUMBER}]} | sed -E "s/^.*([0-9][0-9][0-9][0-9])-.*$/\1/"`
 #CDDBENTITY=`cd-discid ${DEVICE_FILE} | cut -d" " -f1`
 
-echo "REM DATE \"${SELECTEDDATE}\"" >> ${TARGET_CUE_PATH}
+if ! [[ -z "${SELECTEDDATE}" ]] ; then
+
+	echo "REM DATE \"${SELECTEDDATE}\"" >> ${TARGET_CUE_PATH}
+fi
 #echo "CDDB \"${CDDBENTITY}\"" >> ${TARGET_CUE_PATH}
+
+SELECTEDTOTALDISCNUMBER=$((${TOTALDISCS[${SELECTEDNUMBER}]}))
+SELECTEDDISCNUMBER=${DISCNUMBERS[${SELECTEDNUMBER}]}
+
+if ! [[ -z ${SELECTEDTOTALDISCNUMBER} ]] || [ ${SELECTEDTOTALDISCNUMBER} -gt 1 ] ; then
+
+	echo "REM DISCNUMBER ${SELECTEDDISCNUMBER}" >> ${TARGET_CUE_PATH}
+	echo "REM TOTALDISCS ${SELECTEDTOTALDISCNUMBER}" >> ${TARGET_CUE_PATH}
+fi
+
 echo "" >> ${TARGET_CUE_PATH}
+
 
 LOADING_ON=0
 INSERT_ON=0
@@ -286,7 +315,14 @@ cat ${DUMPCUEFILENAME} | while read LINE; do
 done
 
 rm ${DUMPCUEFILENAME}
-SAVEDXMLFILENAME=`echo "${ARTISTS[${SELECTEDNUMBER}]} - ${ALBUMTITLES[${SELECTEDNUMBER}]}" | sed 's/\//#/g'`
+
+if [ -z "${SELECTEDDISCNUMBER}" ] || [ -z ${SELECTEDTOTALDISCNUMBER} ] || [ ${SELECTEDTOTALDISCNUMBER} -lt 2 ]; then
+
+	SAVEDXMLFILENAME=`echo "${ARTISTS[${SELECTEDNUMBER}]} - ${ALBUMTITLES[${SELECTEDNUMBER}]}" | sed 's/\//#/g'`
+else
+	SAVEDXMLFILENAME=`echo "${ARTISTS[${SELECTEDNUMBER}]} - ${ALBUMTITLES[${SELECTEDNUMBER}]} Disc ${SELECTEDDISCNUMBER}" | sed 's/\//#/g'`
+fi
+
 mv ${MUSICBRAINZXMLNAME} "${SAVEDXMLFILENAME}.xml"
 
 exit 0

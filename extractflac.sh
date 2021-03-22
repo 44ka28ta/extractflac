@@ -25,11 +25,28 @@ fix_toc_and_convert_cue() {
 	cueconvert $1.toc $1.cue
 }
 
-get_artist_and_album_from_cue() {
+get_artist_and_album_info_from_cue() {
 
-	ARTIST=`head -n 5 \1 | grep "PERFORMER" | sed -E 's/PERFORMER\ |"//g'`
-	ALBUM=`head -n 5 \1 | grep "TITLE" | sed -E 's/TITLE\ |"//g'`
-	DATE=`head -n 5 \1 | grep "REM DATE" | sed -E 's/REM\ DATE\ |"//g'`
+	FILELINE=1
+
+	while read LINE; do
+
+		CUECOMMAND=`echo ${LINE} | cut -d" " -f1`
+		if [[ ${CUECOMMAND} == "FILE" ]]; then
+
+			break
+		else
+			FILELINE=$((FILELINE+1))
+		fi
+
+	done < $1
+
+	ARTIST=`head -n ${FILELINE} $1 | grep "PERFORMER" | sed -E 's/PERFORMER\ |"//g'`
+	ALBUM=`head -n ${FILELINE} $1 | grep "TITLE" | sed -E 's/TITLE\ |"//g'`
+	DATE=`head -n ${FILELINE} $1 | grep "REM DATE" | sed -E 's/REM\ DATE\ |"//g'`
+	DISCNUMBER=`head -n ${FILELINE} $1 | grep "REM DISCNUMBER" | sed -E 's/REM\ DISCNUMBER\ |"//g'`
+	TOTALDISCS=`head -n ${FILELINE} $1 | grep "REM TOTALDISCS" | sed -E 's/REM\ TOTALDISCS\ |"//g'`
+	CATALOG=`head -n ${FILELINE} $1 | grep "CATALOG" | sed -E 's/CATALOG\ |"//g'`
 }
 
 
@@ -88,7 +105,7 @@ if [ $? -ne 0 ]; then
 
 	fix_toc_and_convert_cue ${SAVE_PATH}/${DUMPFILENAME}
 
-	get_artist_and_album_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue
+	get_artist_and_album_info_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue
 
 	if [ -z "${ARTIST}" ]; then
 
@@ -98,7 +115,7 @@ if [ $? -ne 0 ]; then
 
 		fix_toc_and_convert_cue ${SAVE_PATH}/${DUMPFILENAME}
 
-		get_artist_and_album_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue
+		get_artist_and_album_info_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue
 
 		if [ -z "${ARTIST}" ]; then
 
@@ -108,7 +125,7 @@ if [ $? -ne 0 ]; then
 
 			fix_toc_and_convert_cue ${SAVE_PATH}/${DUMPFILENAME}
 
-			get_artist_and_album_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue
+			get_artist_and_album_info_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue
 
 			if [ -z "${ARTIST}" ]; then
 
@@ -124,12 +141,17 @@ if [ $? -ne 0 ]; then
 		echo "[INFO] 2/6: Fetched Data; Artist: ${ARTIST}, Album: ${ALBUM}"
 	fi
 else
-	get_artist_and_album_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue
+	get_artist_and_album_info_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue
 fi
 
-FLACFILENAME="${ARTIST} - ${ALBUM}"
+if [ -z "${DISCNUMBER}" ] || [ -z ${TOTALDISCS} ] || [ ${TOTALDISCS} -lt 2 ]; then
 
-sed -i -E -e "s/FILE\ \".*${DUMPFILENAME}\.bin/FILE\ \"${FLACFILENAME}\.wav/" "${SAVE_PATH}/${DUMPFILENAME}.cue"
+	FLACFILENAME=`echo "${ARTIST} - ${ALBUM}" | sed 's/\//#/g'`
+else
+	FLACFILENAME=`echo "${ARTIST} - ${ALBUM} Disc ${DISCNUMBER}" | sed 's/\//#/g'`
+fi
+
+sed -i -E -e "s/FILE\ \".*${DUMPFILENAME}\.bin/FILE\ \"${FLACFILENAME}\.flac/" "${SAVE_PATH}/${DUMPFILENAME}.cue"
 mv "${SAVE_PATH}/${DUMPFILENAME}.cue" "${SAVE_PATH}/${FLACFILENAME}.cue"
 
 echo "[INFO] 3/6: Convert Bin to WAV"
@@ -144,9 +166,37 @@ flac --best --cuesheet="${SAVE_PATH}/${FLACFILENAME}.cue" "${SAVE_PATH}/${FLACFI
 # put Vorbis comment
 #
 metaflac --set-tag-from-file="CUESHEET=${SAVE_PATH}/${FLACFILENAME}.cue" "${SAVE_PATH}/${FLACFILENAME}.flac"
-metaflac --set-tag="ARTIST=${ARTIST}" "${SAVE_PATH}/${FLACFILENAME}.flac"
-metaflac --set-tag="ALBUM=${ALBUM}" "${SAVE_PATH}/${FLACFILENAME}.flac"
-metaflac --set-tag="DATE=${DATE}" "${SAVE_PATH}/${FLACFILENAME}.flac"
+
+if ! [[ -z "${ARTIST}" ]] ; then
+
+	metaflac --set-tag="ARTIST=${ARTIST}" "${SAVE_PATH}/${FLACFILENAME}.flac"
+fi
+
+if ! [[ -z "${ALBUM}" ]] ; then
+
+	metaflac --set-tag="ALBUM=${ALBUM}" "${SAVE_PATH}/${FLACFILENAME}.flac"
+fi
+
+if ! [[ -z "${DATE}" ]] ; then
+
+	metaflac --set-tag="DATE=${DATE}" "${SAVE_PATH}/${FLACFILENAME}.flac"
+fi
+
+if ! [[ -z "${DISCNUMBER}" ]] ; then
+
+	metaflac --set-tag="DISCNUMBER=${DISCNUMBER}" "${SAVE_PATH}/${FLACFILENAME}.flac"
+fi
+
+if ! [[ -z "${TOTALDISCS}" ]] ; then
+
+	metaflac --set-tag="TOTALDISCS=${TOTALDISCS}" "${SAVE_PATH}/${FLACFILENAME}.flac"
+fi
+
+if ! [[ -z "${CATALOG}" ]] ; then
+
+	CATALOG=`printf "%013d" ${CATALOG}`
+	metaflac --set-tag="CATALOGNUMBER=${CATALOG}" "${SAVE_PATH}/${FLACFILENAME}.flac"
+fi
 
 echo "[INFO] 5/6: Finalize temporarl data"
 
@@ -156,7 +206,9 @@ rm "${SAVE_PATH}/${DUMPFILENAME}.bin"
 
 if [ ${ARTIST_ALBUM_DIR_OPTION} -eq 1 ]; then
 
-	SAVEFULLPATH="${SAVE_PATH}/${ARTIST}/${ALBUM}"
+	FOLDER_ARTIST=`echo ${ARTIST} | sed 's/\//#/g'`
+	FOLDER_ALBUM=`echo ${ALBUM} | sed 's/\//#/g'`
+	SAVEFULLPATH="${SAVE_PATH}/${FOLDER_ARTIST}/${FOLDER_ALBUM}"
 	mkdir -p "${SAVEFULLPATH}"
 
 	mv "${SAVE_PATH}/${FLACFILENAME}.flac" "${SAVEFULLPATH}"
