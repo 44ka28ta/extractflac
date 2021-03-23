@@ -10,6 +10,7 @@ show_help() {
         echo "-h: show this." >&2
 }
 
+
 get_element_with_xpath() {
 	local ELEMENTSTR=$(xmllint --shell $1 <<EOF
 setrootns http://musicbrainz.org/ns/mmd-2.0#
@@ -29,8 +30,34 @@ EOF
 		ELEMENTS+=("`echo "${LINE}" | sed 's/\&amp\;/\&/g; s/\&lt\;/\</g; s/\&gt\;/\>/g; s/\&quot\;/\"/g; s/\&apos\;/'\''/g'`")
 
 	done <<< ${ELEMENTSTR}
-
 }
+
+get_artists() {
+
+	local -n ARTISTLIST=$3
+
+	JOINPHRASES=()
+	ARTISTRAW=()
+
+	get_element_with_xpath $1 "//defaultns:release[@id=\"$2\"]/defaultns:artist-credit/defaultns:name-credit/@joinphrase" "^\s*joinphrase=\"" "\"" JOINPHRASES
+	get_element_with_xpath $1 "//defaultns:release[@id=\"$2\"]/defaultns:artist-credit/descendant::defaultns:name" "<name>" "<\/name>" ARTISTRAW 
+
+	ARTISTSTR=${ARTISTRAW[0]}
+
+	if [ ${#JOINPHRASES[@]} -gt 0 ]; then
+
+		UPPERBOUNDJOININDEX=$((${#JOINPHRASES[@]}-1))
+
+		for PHRASEINDEX in `seq 0 ${UPPERBOUNDJOININDEX}`; do
+
+			NEXTRAW=$((${PHRASEINDEX}+1))
+			ARTISTSTR=${ARTISTSTR}${JOINPHRASES[${PHRASEINDEX}]}${ARTISTRAW[${NEXTRAW}]}
+		done
+	fi
+
+	ARTISTLIST+=("${ARTISTSTR}")
+}
+
 
 FIRSTTRACKNUMBER=1
 
@@ -75,7 +102,6 @@ if [ ${FIRSTTRACKNUMBER} -ne 1 ]; then
 
 	DISCID=`sh ${SCRIPT_PARENT}/gendiscid.sh -f ${FIRSTTRACKNUMBER} -d ${DEVICE_FILE}`
 else
-
 	DISCID=`sh ${SCRIPT_PARENT}/gendiscid.sh -d ${DEVICE_FILE}`
 fi
 
@@ -89,6 +115,9 @@ fi
 #TOC="1+8+172688+150+19618+27537+55184+76519+96628+116805+143552"
 #
 
+#DISCID="vd6WBLVb1_NIcJid_jc4K4j6Yxw-"
+
+
 DUMPFILENAME=`basename ${DEVICE_FILE}``cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1`
 MUSICBRAINZXMLNAME=${DUMPFILENAME}.xml
 
@@ -96,46 +125,59 @@ curl -X GET https://musicbrainz.org/ws/2/discid/${DISCID}?inc=artists+recordings
 
 #MUSICBRAINZXMLNAME="aabCMzEgXUcL5AMgW0.xml"
 #MUSICBRAINZXMLNAME="test.xml"
+#MUSICBRAINZXMLNAME="sr0ZWVoosq1Lz0HfthF.xml"
+#MUSICBRAINZXMLNAME="sr13QgkOWQCAG8EndWV.xml"
 
 RELEASEIDS=()
 
 get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:disc[@id=\"${DISCID}\"]/ancestor::defaultns:release/@id" "^\s*id=\"" "\"" RELEASEIDS
 
+if [ -z "${RELEASEIDS}" ]; then
+
+	echo "There is no artist and album title." >&2
+	rm ${MUSICBRAINZXMLNAME}
+	exit 1
+fi
+
 ALBUMTITLES=()
-
-get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:disc[@id=\"${DISCID}\"]/ancestor::defaultns:medium-list/preceding-sibling::defaultns:title" "^\s*<title>" "<\/title>" ALBUMTITLES
-
 ARTISTS=()
+RELEASEDATES=()
+COUNTRIES=()
+CATALOGS=()
+TOTALDISCS=()
 
-get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:disc[@id=\"${DISCID}\"]/ancestor::defaultns:medium-list/preceding-sibling::defaultns:artist-credit/descendant::defaultns:name" "<name>" "<\/name>" ARTISTS
+UPPERBOUNDALBUMENTRIES=$((${#RELEASEIDS[@]}-1))
+
+
+for INDEX in `seq 0 ${UPPERBOUNDALBUMENTRIES}`; do
+
+	get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:release[@id=\"${RELEASEIDS[${INDEX}]}\"]/defaultns:title" "^\s*<title>" "<\/title>" ALBUMTITLES
+
+	get_artists ${MUSICBRAINZXMLNAME} ${RELEASEIDS[${INDEX}]} ARTISTS
+
+	get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:release[@id=\"${RELEASEIDS[${INDEX}]}\"]/defaultns:date" "^\s*<date>" "<\/date>" RELEASEDATES
+
+	get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:release[@id=\"${RELEASEIDS[${INDEX}]}\"]/defaultns:country" "^\s*<country>" "<\/country>" COUNTRIES
+
+	get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:release[@id=\"${RELEASEIDS[${INDEX}]}\"]/defaultns:barcode" "^\s*<barcode>" "<\/barcode>" CATALOGS
+
+	get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:release[@id=\"${RELEASEIDS[${INDEX}]}\"]/defaultns:medium-list/@count" "^\s*count=\"" "\"" TOTALDISCS
+
+done
+
 
 DISCNUMBERS=()
 
 get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:disc[@id=\"${DISCID}\"]/ancestor::defaultns:medium/defaultns:position" "^\s*<position>" "<\/position>" DISCNUMBERS
 
-TOTALDISCS=()
-
-get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:disc[@id=\"${DISCID}\"]/ancestor::defaultns:medium-list/@count" "^\s*count=\"" "\"" TOTALDISCS
-
-RELEASEDATES=()
-
-get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:disc[@id=\"${DISCID}\"]/ancestor::defaultns:release/defaultns:date" "^\s*<date>" "<\/date>" RELEASEDATES
-
-COUNTRIES=()
-
-get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:disc[@id=\"${DISCID}\"]/ancestor::defaultns:release/defaultns:country" "^\s*<country>" "<\/country>" COUNTRIES
-
-
-CATALOGS=()
-
-get_element_with_xpath ${MUSICBRAINZXMLNAME} "//defaultns:disc[@id=\"${DISCID}\"]/ancestor::defaultns:release/defaultns:barcode" "^\s*<barcode>" "<\/barcode>" CATALOGS
-
 
 UPPERBOUNDINDEX=$((${#ALBUMTITLES[@]}-1))
 
-if [ ${UPPERBOUNDINDEX} -lt 1 ]; then
+
+if [ ${#ALBUMTITLES[@]} -lt 1 ]; then
 
 	echo "There is no artist and album title. ${UPPERBOUNDINDEX}" >&2
+	rm ${MUSICBRAINZXMLNAME}
 	exit 1
 fi
 
@@ -154,7 +196,7 @@ done
 echo -n "please select the number of album title: "
 read SELECTEDNUMBER
 
-SELECTEDNUMBER=$((${SELECTEDNUMBER}))
+SELECTEDNUMBER=${SELECTEDNUMBER}
 
 if ! [[ "${SELECTEDNUMBER}" =~ ^[0-9]+$ ]] ; then
 
@@ -175,6 +217,7 @@ fi
 if [ -z "${ARTISTS[${SELECTEDNUMBER}]}" ] || [ -z "${ALBUMTITLES[${SELECTEDNUMBER}]}" ]; then
 
 	echo "There is no artist and album title." >&2
+	rm ${MUSICBRAINZXMLNAME}
 	exit 1
 fi
 
@@ -213,7 +256,10 @@ while read LINE; do
 
 	elif [[ ${CUECOMMAND} == "INDEX" ]]; then
 
-		INDEXCNT=$((INDEXCNT+1))
+		if [[ "`echo ${LINE} | cut -d" " -f2`" == "01" ]]; then
+
+			INDEXCNT=$((INDEXCNT+1))
+		fi
 
 	elif [[ ${CUECOMMAND} == "TITLE" ]]; then
 
@@ -229,6 +275,7 @@ done < ${TARGET_CUE_PATH}
 if [ ${FILECNT} -ne 1 ] || [ ${TRACKCNT} -ne ${INDEXCNT} ] || [ ${TRACKCNT} -ne ${#TRACKNUMBERS[@]} ] || [ ${TITLECNT} -gt 0 ] || [ ${PERFORMERCNT} -gt 0 ]; then
 
 	echo "Fail to verify cue sheet: not match MusicBrainz data. (FILECNT: ${FILECNT}, TRACKCNT: ${TRACKCNT}, INDEXCNT: ${INDEXCNT}, TITLECNT:${TITLECNT}, PERFORMERCNT: ${PERFORMERCNT})" >&2
+	rm ${MUSICBRAINZXMLNAME}
 	exit 1
 fi
 
@@ -302,8 +349,12 @@ cat ${DUMPCUEFILENAME} | while read LINE; do
 		elif [[ ${CUECOMMAND} == "INDEX" ]]; then
 
 			echo "${LINE}" >> ${TARGET_CUE_PATH}
-			echo "" >> ${TARGET_CUE_PATH}
-			INSERT_ON=0
+
+			if [[ "`echo ${LINE} | cut -d" " -f2`" == "01" ]]; then
+
+				echo "" >> ${TARGET_CUE_PATH}
+				INSERT_ON=0
+			fi
 		fi
 
 		if [[ ${INSERT_ON} -eq 1 ]]; then

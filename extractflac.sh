@@ -2,12 +2,13 @@
 
 show_help() {
 	echo "Create FLAC audio with CUESheet from CD" >&2
-	echo "$0 [-h] [-p] [-s SAVE_PATH] -d DEVICE_FILE" >&2
+	echo "$0 [-h] [-p] [-s SAVE_PATH] [-r RESUME_FILE] -d DEVICE_FILE" >&2
 	echo "" >&2
 	echo "-h: show this." >&2
 	echo "-p: option of making artist / album directory." >&2
 	echo "-s: save directory path" >&2
 	echo "-d: device file" >&2
+	echo "-r: resume extraction" >&2
 }
 
 ARTIST=''
@@ -22,6 +23,8 @@ fix_toc_and_convert_cue() {
 	#                0,  0,  0,  0,  9,  0,  0,  0,  0,  0,  0,  0}
 	sed -E -i '/SIZE_INFO \{/{:a;N;/\}/!ba};/SIZE_INFO \{.*\}/d' $1.toc
 	sed -E -i '/LANGUAGE [0-9]+ \{/{:a;N;/\}/!ba};s/\s+ISRC "[^"]+"//' $1.toc # Remove duplicated ISRC in LANGUAGE block
+	sed -i 's/　/ /g' $1.toc # Replace two-byte space with one-byte space
+	sed -i 's/／/\//g' $1.toc # Replace two-byte slash with one-byte slash
 	cueconvert $1.toc $1.cue
 }
 
@@ -29,12 +32,24 @@ get_artist_and_album_info_from_cue() {
 
 	FILELINE=1
 
+	DATE=""
+
 	while read LINE; do
 
 		CUECOMMAND=`echo ${LINE} | cut -d" " -f1`
 		if [[ ${CUECOMMAND} == "FILE" ]]; then
 
 			break
+
+		elif [[ ${CUECOMMAND} == "MESSAGE" ]]; then
+	
+			DATESTR="`echo ${LINE} | sed -e 's/^MESSAGE \"\s*YEAR: \([0-9][0-9][0-9][0-9]\)\s*\"/\1/'`"
+
+			if ! [[ -z "${DATESTR}" ]]; then
+
+				DATE=${DATESTR}
+			fi
+
 		else
 			FILELINE=$((FILELINE+1))
 		fi
@@ -43,10 +58,14 @@ get_artist_and_album_info_from_cue() {
 
 	ARTIST=`head -n ${FILELINE} $1 | grep "PERFORMER" | sed -E 's/PERFORMER\ |"//g'`
 	ALBUM=`head -n ${FILELINE} $1 | grep "TITLE" | sed -E 's/TITLE\ |"//g'`
-	DATE=`head -n ${FILELINE} $1 | grep "REM DATE" | sed -E 's/REM\ DATE\ |"//g'`
 	DISCNUMBER=`head -n ${FILELINE} $1 | grep "REM DISCNUMBER" | sed -E 's/REM\ DISCNUMBER\ |"//g'`
 	TOTALDISCS=`head -n ${FILELINE} $1 | grep "REM TOTALDISCS" | sed -E 's/REM\ TOTALDISCS\ |"//g'`
 	CATALOG=`head -n ${FILELINE} $1 | grep "CATALOG" | sed -E 's/CATALOG\ |"//g'`
+
+	if [ -z "${DATE}" ]; then
+
+		DATE=`head -n ${FILELINE} $1 | grep "REM DATE" | sed -E 's/REM\ DATE\ |"//g'`
+	fi
 }
 
 
@@ -54,11 +73,12 @@ OPTINT=1
 
 SAVE_PATH=`pwd`
 DEVICE_FILE=""
+RESUME_FILE=""
 ARTIST_ALBUM_DIR_OPTION=0
 
 SCRIPT_PARENT=`dirname ${0}`
 
-while getopts "h?ps:d:" opt; do
+while getopts "h?ps:d:r:" opt; do
 	case "${opt}" in
 		h|\?)
 			show_help
@@ -73,23 +93,36 @@ while getopts "h?ps:d:" opt; do
 		d)
 			DEVICE_FILE=${OPTARG}
 			;;
+		r)
+			RESUME_FILE=${OPTARG}
+			;;
 	esac
 done
 
 if [ -z ${DEVICE_FILE} ]; then
+
 	show_help
 	exit 0
 fi
 
 shift $((OPTINT-1))
 
-DUMPFILENAME=`basename ${DEVICE_FILE}``cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1`
+if [ -z "${RESUME_FILE}" ]; then
+
+	DUMPFILENAME=`basename ${DEVICE_FILE}``cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1`
+else
+	DUMPFILENAME="${RESUME_FILE%.*}"
+	SAVE_PATH=`dirname ${RESUME_FILE}`
+fi
 
 echo "[INFO] 1/6: Extract CD to ${SAVE_PATH}/${DUMPFILENAME}"
 
-cdrdao read-cd --device ${DEVICE_FILE} --datafile ${SAVE_PATH}/${DUMPFILENAME}.{bin,toc}
+if [ -z "${RESUME_FILE}" ]; then
 
-fix_toc_and_convert_cue ${SAVE_PATH}/${DUMPFILENAME}
+	cdrdao read-cd --device ${DEVICE_FILE} --datafile ${SAVE_PATH}/${DUMPFILENAME}.{bin,toc}
+
+	fix_toc_and_convert_cue ${SAVE_PATH}/${DUMPFILENAME}
+fi
 
 echo "[INFO] 2/6: Convert TOC to CUESheet (by MusicBrainz)"
 
@@ -213,6 +246,11 @@ if [ ${ARTIST_ALBUM_DIR_OPTION} -eq 1 ]; then
 
 	mv "${SAVE_PATH}/${FLACFILENAME}.flac" "${SAVEFULLPATH}"
 	mv "${SAVE_PATH}/${FLACFILENAME}.cue" "${SAVEFULLPATH}"
+
+	if [ -e "${SAVE_PATH}/${FLACFILENAME}.xml" ]; then
+
+		mv "${SAVE_PATH}/${FLACFILENAME}.xml" "${SAVEFULLPATH}"
+	fi
 fi
 
 echo "[INFO] 6/6: Finish"
