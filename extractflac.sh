@@ -1,18 +1,20 @@
 #/bin/bash
 
 show_help() {
-	echo "Create FLAC audio with CUESheet from CD" >&2
-	echo "$0 [-h] [-p] [-s SAVE_PATH] [-r RESUME_FILE] -d DEVICE_FILE" >&2
+	echo "Create FLAC audio with CUE sheet from CD" >&2
+	echo "$0 [-h] [-p] [-u] [-s SAVE_PATH] [-r RESUME_FILE] -d DEVICE_FILE" >&2
 	echo "" >&2
 	echo "-h: show this." >&2
 	echo "-p: option of making artist / album directory." >&2
 	echo "-s: save directory path" >&2
 	echo "-d: device file" >&2
 	echo "-r: resume extraction" >&2
+	echo "-u: UTF-8 encoding of CUE sheet from CDDB, MusicBrainz for the resume and default CD-TEXT (the default encoding is Latin1 (ISO-8859-1))" >&2
 }
 
 ARTIST=''
 ALBUM=''
+DEFAULT_ENCODING="iso-8859-1"
 
 clean_cue() {
 
@@ -50,9 +52,9 @@ get_artist_and_album_info_from_cue() {
 
 		elif [[ ${CUECOMMAND} == "MESSAGE" ]]; then
 	
-			DATESTR="`echo ${LINE} | sed -e 's/^MESSAGE \"\s*YEAR: \([0-9][0-9][0-9][0-9]\)\s*\"/\1/'`"
+			DATESTR="`echo ${LINE} | sed -e 's/^MESSAGE \"\s*YEAR: \([0-9][0-9][0-9][0-9]\)\s*\"$/\1/'`"
 
-			if ! [[ -z "${DATESTR}" ]]; then
+			if [[ "${DATESTR}" =~ ^[0-9][0-9][0-9][0-9]$ ]] ; then
 
 				DATE=${DATESTR}
 			fi
@@ -61,19 +63,19 @@ get_artist_and_album_info_from_cue() {
 			FILELINE=$((FILELINE+1))
 		fi
 
-	done < $1
+	done < "$1"
 
 	# First, fix octal code point of unicode or other encodings in CUE Sheet
 	# Finally, convert character encoding (because PERFORMER and TITLE entries in CUE Sheet are encoded latin1 (iso-8859-1))
-	ARTIST=`printf "$(cat $1)\n" | head -n ${FILELINE} | grep -a "PERFORMER" | sed -E 's/PERFORMER\ |"//g' | iconv -f $2 -t utf-8`
-	ALBUM=`printf "$(cat $1)\n" | head -n ${FILELINE} | grep -a "TITLE" | sed -E 's/TITLE\ |"//g' | iconv -f $2 -t utf-8`
-	DISCNUMBER=`head -n ${FILELINE} $1 | grep "REM DISCNUMBER" | sed -E 's/REM\ DISCNUMBER\ |"//g'`
-	TOTALDISCS=`head -n ${FILELINE} $1 | grep "REM TOTALDISCS" | sed -E 's/REM\ TOTALDISCS\ |"//g'`
-	CATALOG=`head -n ${FILELINE} $1 | grep "CATALOG" | sed -E 's/CATALOG\ |"//g'`
+	ARTIST=`printf "$(cat "$1")\n" | head -n ${FILELINE} | grep -a "PERFORMER" | sed -E 's/PERFORMER\ |"//g' | iconv -f $2 -t utf-8`
+	ALBUM=`printf "$(cat "$1")\n" | head -n ${FILELINE} | grep -a "TITLE" | sed -E 's/TITLE\ |"//g' | iconv -f $2 -t utf-8`
+	DISCNUMBER=`head -n ${FILELINE} "$1" | grep "REM DISCNUMBER" | sed -E 's/REM\ DISCNUMBER\ |"//g'`
+	TOTALDISCS=`head -n ${FILELINE} "$1" | grep "REM TOTALDISCS" | sed -E 's/REM\ TOTALDISCS\ |"//g'`
+	CATALOG=`head -n ${FILELINE} "$1" | grep "CATALOG" | sed -E 's/CATALOG\ |"//g'`
 
 	if [ -z "${DATE}" ]; then
 
-		DATE=`head -n ${FILELINE} $1 | grep "REM DATE" | sed -E 's/REM\ DATE\ |"//g'`
+		DATE=`head -n ${FILELINE} "$1" | grep "REM DATE" | sed -E 's/REM\ DATE\ |"//g'`
 	fi
 }
 
@@ -87,7 +89,7 @@ ARTIST_ALBUM_DIR_OPTION=0
 
 SCRIPT_PARENT=`dirname ${0}`
 
-while getopts "h?ps:d:r:" opt; do
+while getopts "h?ups:d:r:" opt; do
 	case "${opt}" in
 		h|\?)
 			show_help
@@ -105,6 +107,8 @@ while getopts "h?ps:d:r:" opt; do
 		r)
 			RESUME_FILE=${OPTARG}
 			;;
+		u)
+			DEFAULT_ENCODING="utf-8"
 	esac
 done
 
@@ -121,7 +125,7 @@ if [ -z "${RESUME_FILE}" ]; then
 	DUMPFILENAME=`basename ${DEVICE_FILE}``cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1`
 else
 	DUMPFILENAME="${RESUME_FILE%.*}"
-	SAVE_PATH=`dirname ${RESUME_FILE}`
+	SAVE_PATH=`dirname "${RESUME_FILE}"`
 fi
 
 echo "[INFO] 1/6: Extract CD to ${SAVE_PATH}/${DUMPFILENAME}"
@@ -130,58 +134,63 @@ if [ -z "${RESUME_FILE}" ]; then
 
 	cdrdao read-cd --device ${DEVICE_FILE} --datafile ${SAVE_PATH}/${DUMPFILENAME}.{bin,toc}
 
-	echo "[INFO] 2/6: Convert TOC to CUESheet (from CD)"
+	echo "[INFO] 2/6: Convert TOC to CUE sheet (from CD)"
 
 	fix_toc_and_convert_cue ${SAVE_PATH}/${DUMPFILENAME}
 fi
 
-echo "[INFO] 2/6: Check CUESheet"
+echo "[INFO] 2/6: Check CUE sheet"
 
-get_artist_and_album_info_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue "iso-8859-1"
+get_artist_and_album_info_from_cue "${SAVE_PATH}/${DUMPFILENAME}.cue" ${DEFAULT_ENCODING}
 
 if [[ -z "${ARTIST}" ]] || [[ -z "${ALBUM}" ]]; then
 
-	echo "[INFO] 2/6: Proceed to clean CUESheet"
+	echo "[INFO] 2/6: Proceed to clean CUE sheet"
 
-	clean_cue ${SAVE_PATH}/${DUMPFILENAME}.cue
+	clean_cue "${SAVE_PATH}/${DUMPFILENAME}.cue"
 
-	echo "[INFO] 2/6: Convert TOC to CUESheet (by MusicBrainz)"
+	echo "[INFO] 2/6: Convert TOC to CUE Sheet (by MusicBrainz)"
 
-	sh ${SCRIPT_PARENT}/getmusicbrainz.sh -d ${DEVICE_FILE} -c ${SAVE_PATH}/${DUMPFILENAME}.cue
+	sh ${SCRIPT_PARENT}/getmusicbrainz.sh -d ${DEVICE_FILE} -c "${SAVE_PATH}/${DUMPFILENAME}.cue"
 
 	if [ $? -ne 0 ]; then
 
-		cdrdao read-cddb --cddb-servers "freedbtest.dyndns.org:/~cddb/cddbutf8.cgi" ${SAVE_PATH}/${DUMPFILENAME}.toc
+		cdrdao read-cddb --cddb-servers "freedbtest.dyndns.org:/~cddb/cddbutf8.cgi" "${SAVE_PATH}/${DUMPFILENAME}.toc"
 
-		echo "[INFO] 2/6: Convert TOC to CUESheet"
+		if [ $? -ne 0 ]; then
+			## For CDDB READ failed: 401 data No such CD entry in database.
+			yes 1 | cdrdao read-cddb --cddb-servers "freedbtest.dyndns.org:/~cddb/cddbutf8.cgi" "${SAVE_PATH}/${DUMPFILENAME}.toc"
+		fi
 
-		fix_toc_and_convert_cue ${SAVE_PATH}/${DUMPFILENAME}
+		echo "[INFO] 2/6: Convert TOC to CUE sheet"
 
-		get_artist_and_album_info_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue "utf-8"
+		fix_toc_and_convert_cue "${SAVE_PATH}/${DUMPFILENAME}"
+
+		get_artist_and_album_info_from_cue "${SAVE_PATH}/${DUMPFILENAME}.cue" "utf-8"
 
 		echo "${ARTIST}"
 
-		cat ${SAVE_PATH}/${DUMPFILENAME}.cue
+		cat "${SAVE_PATH}/${DUMPFILENAME}.cue"
 
 		if [ -z "${ARTIST}" ]; then
 
-			echo "[INFO] 2/6: Convert TOC to CUESheet: Does not hit, 1st Reloading ..."
+			echo "[INFO] 2/6: Convert TOC to CUE sheet: Does not hit, 1st Reloading ..."
 
-			cdrdao read-cddb --cddb-servers "gnudb.gnudb.org:/~cddb/cddb.cgi" ${SAVE_PATH}/${DUMPFILENAME}.toc
+			cdrdao read-cddb --cddb-servers "gnudb.gnudb.org:/~cddb/cddb.cgi" "${SAVE_PATH}/${DUMPFILENAME}.toc"
 
-			fix_toc_and_convert_cue ${SAVE_PATH}/${DUMPFILENAME}
+			fix_toc_and_convert_cue "${SAVE_PATH}/${DUMPFILENAME}"
 
-			get_artist_and_album_info_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue "utf-8"
+			get_artist_and_album_info_from_cue "${SAVE_PATH}/${DUMPFILENAME}.cue" "utf-8"
 
 			if [ -z "${ARTIST}" ]; then
 
-				echo "[INFO] 2/6: Convert TOC to CUESheet: Does not hit, 2nd Reloading ..."
+				echo "[INFO] 2/6: Convert TOC to CUE sheet: Does not hit, 2nd Reloading ..."
 
-				cdrdao read-cddb --cddb-servers "freedb.dbpoweramp.com:/~cddb/cddb.cgi" ${SAVE_PATH}/${DUMPFILENAME}.toc
+				cdrdao read-cddb --cddb-servers "freedb.dbpoweramp.com:/~cddb/cddb.cgi" "${SAVE_PATH}/${DUMPFILENAME}.toc"
 
-				fix_toc_and_convert_cue ${SAVE_PATH}/${DUMPFILENAME}
+				fix_toc_and_convert_cue "${SAVE_PATH}/${DUMPFILENAME}"
 
-				get_artist_and_album_info_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue "utf-8"
+				get_artist_and_album_info_from_cue "${SAVE_PATH}/${DUMPFILENAME}.cue" "utf-8"
 
 				if [ -z "${ARTIST}" ]; then
 
@@ -197,7 +206,7 @@ if [[ -z "${ARTIST}" ]] || [[ -z "${ALBUM}" ]]; then
 			echo "[INFO] 2/6: Fetched Data; Artist: ${ARTIST}, Album: ${ALBUM}"
 		fi
 	else
-		get_artist_and_album_info_from_cue ${SAVE_PATH}/${DUMPFILENAME}.cue "utf-8"
+		get_artist_and_album_info_from_cue "${SAVE_PATH}/${DUMPFILENAME}.cue" "utf-8"
 	fi
 fi
 

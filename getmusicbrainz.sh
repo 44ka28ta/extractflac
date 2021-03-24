@@ -287,7 +287,10 @@ else
 	if [ "${#CATALOGS[${SELECTEDNUMBER}]}" -lt 13 ]; then
 
 		MODCATALOGS=`printf "%013d" ${CATALOGS[${SELECTEDNUMBER}]}`
+	else
+		MODCATALOGS="${CATALOGS[${SELECTEDNUMBER}]}"
 	fi
+
 	echo "CATALOG ${MODCATALOGS}" > ${TARGET_CUE_PATH}
 fi
 

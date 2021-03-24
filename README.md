@@ -22,15 +22,17 @@ Dependencies
 * openssl
 * base64
 * xmllint
+* iconv
 
 Usage
 =====
 
-<pre><code>Create FLAC audio with CUESheet from CD
-extractflac.sh [-h] [-p] [-s SAVE_PATH] [-r RESUME_FILE] -d DEVICE_FILE
+<pre><code>Create FLAC audio with CUE sheet from CD
+extractflac.sh [-h] [-p] [-u] [-s SAVE_PATH] [-r RESUME_FILE] -d DEVICE_FILE
 
 -h: show this.
 -p: option of making artist / album directory.
 -s: save directory path
 -d: device file
--r: resume extraction</code></pre>
+-r: resume extraction
+-u: UTF-8 encoding of CUE sheet from CDDB, MusicBrainz for the resume and default CD-TEXT (the default encoding is Latin1 (ISO-8859-1))</code></pre>
