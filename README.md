@@ -10,7 +10,7 @@ This script resolve CD Infomation by using following CDDB servers:
 * gnudb.gnudb.org
 * freedb.dbpoweramp.com
 
-Dependency
+Dependencies
 =====
 
 * cdrdao
@@ -26,11 +26,11 @@ Dependency
 Usage
 =====
 
-<pre><code>
-Create FLAC audio with CUESheet from CD
-extractflac.sh [-h] [-p] [-s SAVE_PATH] -d DEVICE_FILE
+<pre><code>Create FLAC audio with CUESheet from CD
+extractflac.sh [-h] [-p] [-s SAVE_PATH] [-r RESUME_FILE] -d DEVICE_FILE
 
 -h: show this.
 -p: option of making artist / album directory.
 -s: save directory path
--d: device file</code></pre>
+-d: device file
+-r: resume extraction</code></pre>

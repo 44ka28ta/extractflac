@@ -19,17 +19,16 @@ bye
 EOF
 )
 
-	local ELEMENTSTR=`echo "${ELEMENTSTR}" | grep -E "$3" | sed -E "s/^.*$3(.*)$4.*$/\1/"`
+	ELEMENTSTR="`echo "${ELEMENTSTR}" | grep -a -E "$3" | sed -E "s/^.*$3(.*)$4.*$/\1/"`"
 
 	# Fifth argument is defined return value.
 	local -n ELEMENTS=$5
 
-
-	while read LINE; do
+	while IFS= read -r LINE; do
 
 		ELEMENTS+=("`echo "${LINE}" | sed 's/\&amp\;/\&/g; s/\&lt\;/\</g; s/\&gt\;/\>/g; s/\&quot\;/\"/g; s/\&apos\;/'\''/g'`")
 
-	done <<< ${ELEMENTSTR}
+	done <<< "${ELEMENTSTR}"
 }
 
 get_artists() {
@@ -285,7 +284,10 @@ if [ -z "${CATALOGS[${SELECTEDNUMBER}]}" ]; then
 
 	echo -n "" > ${TARGET_CUE_PATH}
 else
-	MODCATALOGS=`printf "%013d" ${CATALOGS[${SELECTEDNUMBER}]}`
+	if [ "${#CATALOGS[${SELECTEDNUMBER}]}" -lt 13 ]; then
+
+		MODCATALOGS=`printf "%013d" ${CATALOGS[${SELECTEDNUMBER}]}`
+	fi
 	echo "CATALOG ${MODCATALOGS}" > ${TARGET_CUE_PATH}
 fi
 
