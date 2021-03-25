@@ -38,20 +38,27 @@ get_artists() {
 	JOINPHRASES=()
 	ARTISTRAW=()
 
-	get_element_with_xpath $1 "//defaultns:release[@id=\"$2\"]/defaultns:artist-credit/defaultns:name-credit/@joinphrase" "^\s*joinphrase=\"" "\"" JOINPHRASES
-	get_element_with_xpath $1 "//defaultns:release[@id=\"$2\"]/defaultns:artist-credit/descendant::defaultns:name" "<name>" "<\/name>" ARTISTRAW 
+	get_element_with_xpath $1 "//defaultns:release[@id=\"$2\"]/defaultns:artist-credit/defaultns:name-credit/defaultns:name" "<name>" "<\/name>" ARTISTRAW 
 
-	ARTISTSTR=${ARTISTRAW[0]}
+	if [ ${#ARTISTRAW[@]} -eq 0 ]; then
 
-	if [ ${#JOINPHRASES[@]} -gt 0 ]; then
+		get_element_with_xpath $1 "//defaultns:release[@id=\"$2\"]/defaultns:artist-credit/defaultns:name-credit/@joinphrase" "^\s*joinphrase=\"" "\"" JOINPHRASES
+		get_element_with_xpath $1 "//defaultns:release[@id=\"$2\"]/defaultns:artist-credit/descendant::defaultns:artist/defaultns:name" "<name>" "<\/name>" ARTISTRAW 
 
-		UPPERBOUNDJOININDEX=$((${#JOINPHRASES[@]}-1))
+		ARTISTSTR=${ARTISTRAW[0]}
 
-		for PHRASEINDEX in `seq 0 ${UPPERBOUNDJOININDEX}`; do
+		if [ ${#JOINPHRASES[@]} -gt 0 ]; then
 
-			NEXTRAW=$((${PHRASEINDEX}+1))
-			ARTISTSTR=${ARTISTSTR}${JOINPHRASES[${PHRASEINDEX}]}${ARTISTRAW[${NEXTRAW}]}
-		done
+			UPPERBOUNDJOININDEX=$((${#JOINPHRASES[@]}-1))
+
+			for PHRASEINDEX in `seq 0 ${UPPERBOUNDJOININDEX}`; do
+
+				NEXTRAW=$((${PHRASEINDEX}+1))
+				ARTISTSTR=${ARTISTSTR}${JOINPHRASES[${PHRASEINDEX}]}${ARTISTRAW[${NEXTRAW}]}
+			done
+		fi
+	else
+		ARTISTSTR=${ARTISTRAW[0]}
 	fi
 
 	ARTISTLIST+=("${ARTISTSTR}")
@@ -269,7 +276,7 @@ while read LINE; do
 		PERFORMERCNT=$((PERFORMERCNT+1))
 	fi
 
-done < ${TARGET_CUE_PATH}
+done < "${TARGET_CUE_PATH}"
 
 if [ ${FILECNT} -ne 1 ] || [ ${TRACKCNT} -ne ${INDEXCNT} ] || [ ${TRACKCNT} -ne ${#TRACKNUMBERS[@]} ] || [ ${TITLECNT} -gt 0 ] || [ ${PERFORMERCNT} -gt 0 ]; then
 
@@ -278,11 +285,11 @@ if [ ${FILECNT} -ne 1 ] || [ ${TRACKCNT} -ne ${INDEXCNT} ] || [ ${TRACKCNT} -ne 
 	exit 1
 fi
 
-mv ${TARGET_CUE_PATH} ${DUMPCUEFILENAME}
+mv "${TARGET_CUE_PATH}" ${DUMPCUEFILENAME}
 
 if [ -z "${CATALOGS[${SELECTEDNUMBER}]}" ]; then
 
-	echo -n "" > ${TARGET_CUE_PATH}
+	echo -n "" > "${TARGET_CUE_PATH}"
 else
 	if [ "${#CATALOGS[${SELECTEDNUMBER}]}" -lt 13 ]; then
 
@@ -291,17 +298,17 @@ else
 		MODCATALOGS="${CATALOGS[${SELECTEDNUMBER}]}"
 	fi
 
-	echo "CATALOG ${MODCATALOGS}" > ${TARGET_CUE_PATH}
+	echo "CATALOG ${MODCATALOGS}" > "${TARGET_CUE_PATH}"
 fi
 
 if ! [[ -z "${ALBUMTITLES[${SELECTEDNUMBER}]}" ]] ; then
 
-	echo "TITLE \"${ALBUMTITLES[${SELECTEDNUMBER}]}\"" >> ${TARGET_CUE_PATH}
+	echo "TITLE \"${ALBUMTITLES[${SELECTEDNUMBER}]}\"" >> "${TARGET_CUE_PATH}"
 fi
 
 if ! [[ -z "${ARTISTS[${SELECTEDNUMBER}]}" ]] ; then
 
-	echo "PERFORMER \"${ARTISTS[${SELECTEDNUMBER}]}\"" >> ${TARGET_CUE_PATH}
+	echo "PERFORMER \"${ARTISTS[${SELECTEDNUMBER}]}\"" >> "${TARGET_CUE_PATH}"
 fi
 
 SELECTEDDATE=`echo ${RELEASEDATES[${SELECTEDNUMBER}]} | sed -E "s/^.*([0-9][0-9][0-9][0-9])-.*$/\1/"`
@@ -309,7 +316,7 @@ SELECTEDDATE=`echo ${RELEASEDATES[${SELECTEDNUMBER}]} | sed -E "s/^.*([0-9][0-9]
 
 if ! [[ -z "${SELECTEDDATE}" ]] ; then
 
-	echo "REM DATE ${SELECTEDDATE}" >> ${TARGET_CUE_PATH}
+	echo "REM DATE ${SELECTEDDATE}" >> "${TARGET_CUE_PATH}"
 fi
 #echo "CDDB \"${CDDBENTITY}\"" >> ${TARGET_CUE_PATH}
 
@@ -318,11 +325,11 @@ SELECTEDDISCNUMBER=${DISCNUMBERS[${SELECTEDNUMBER}]}
 
 if ! [[ -z ${SELECTEDTOTALDISCNUMBER} ]] || [ ${SELECTEDTOTALDISCNUMBER} -gt 1 ] ; then
 
-	echo "REM DISCNUMBER ${SELECTEDDISCNUMBER}" >> ${TARGET_CUE_PATH}
-	echo "REM TOTALDISCS ${SELECTEDTOTALDISCNUMBER}" >> ${TARGET_CUE_PATH}
+	echo "REM DISCNUMBER ${SELECTEDDISCNUMBER}" >> "${TARGET_CUE_PATH}"
+	echo "REM TOTALDISCS ${SELECTEDTOTALDISCNUMBER}" >> "${TARGET_CUE_PATH}"
 fi
 
-echo "" >> ${TARGET_CUE_PATH}
+echo "" >> "${TARGET_CUE_PATH}"
 
 
 LOADING_ON=0
@@ -340,7 +347,7 @@ cat ${DUMPCUEFILENAME} | while read LINE; do
 
 		if [[ ${CUECOMMAND} == "FILE" ]]; then
 
-			echo "${LINE}" >> ${TARGET_CUE_PATH}
+			echo "${LINE}" >> "${TARGET_CUE_PATH}"
 
 		elif [[ ${CUECOMMAND} == "TRACK" ]]; then
 			
@@ -348,24 +355,27 @@ cat ${DUMPCUEFILENAME} | while read LINE; do
 
 			CUETRACKNUMBER=$((10#${CUETRACKNUMBER}-1))
 
-			echo "${LINE}" >> ${TARGET_CUE_PATH}
+			echo "${LINE}" >> "${TARGET_CUE_PATH}"
 			INSERT_ON=1
+
+		elif [[ ${CUECOMMAND} == "ISRC" ]]; then
+			echo "${LINE}" >> "${TARGET_CUE_PATH}"
 
 		elif [[ ${CUECOMMAND} == "INDEX" ]]; then
 
-			echo "${LINE}" >> ${TARGET_CUE_PATH}
+			echo "${LINE}" >> "${TARGET_CUE_PATH}"
 
 			if [[ "`echo ${LINE} | cut -d" " -f2`" == "01" ]]; then
 
-				echo "" >> ${TARGET_CUE_PATH}
-				INSERT_ON=0
+				echo "" >> "${TARGET_CUE_PATH}"
 			fi
 		fi
 
 		if [[ ${INSERT_ON} -eq 1 ]]; then
 
-			echo "TITLE \"${TITLES[${CUETRACKNUMBER}]}\"" >> ${TARGET_CUE_PATH}
-			echo "PERFORMER \"${ARTISTS[${SELECTEDNUMBER}]}\"" >> ${TARGET_CUE_PATH}
+			echo "TITLE \"${TITLES[${CUETRACKNUMBER}]}\"" >> "${TARGET_CUE_PATH}"
+			echo "PERFORMER \"${ARTISTS[${SELECTEDNUMBER}]}\"" >> "${TARGET_CUE_PATH}"
+			INSERT_ON=0
 		fi
 	fi
 done

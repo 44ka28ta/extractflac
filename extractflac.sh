@@ -2,7 +2,7 @@
 
 show_help() {
 	echo "Create FLAC audio with CUE sheet from CD" >&2
-	echo "$0 [-h] [-p] [-u] [-s SAVE_PATH] [-r RESUME_FILE] -d DEVICE_FILE" >&2
+	echo "$0 [-h] [-p] [-u] [-x] [-z] [-s SAVE_PATH] [-r RESUME_FILE] -d DEVICE_FILE" >&2
 	echo "" >&2
 	echo "-h: show this." >&2
 	echo "-p: option of making artist / album directory." >&2
@@ -10,6 +10,8 @@ show_help() {
 	echo "-d: device file" >&2
 	echo "-r: resume extraction" >&2
 	echo "-u: UTF-8 encoding of CUE sheet from CDDB, MusicBrainz for the resume and default CD-TEXT (the default encoding is Latin1 (ISO-8859-1))" >&2
+	echo "-x: enable --driver generic-mmc:0x1 option for cdrdao" >&2
+	echo "-z: enable --driver generic-mmc:0x3 option for cdrdao" >&2
 }
 
 ARTIST=''
@@ -18,23 +20,23 @@ DEFAULT_ENCODING="iso-8859-1"
 
 clean_cue() {
 
-	sed -i '/CATALOG/d' $1
-	sed -i '/TITLE/d' $1
-	sed -i '/PERFORMER/d' $1
+	sed -i '/CATALOG/d' "$1"
+	sed -i '/TITLE/d' "$1"
+	sed -i '/PERFORMER/d' "$1"
 }
 
 fix_toc_and_convert_cue() {
 
-	sed -i '/TOC_INFO1/d' $1.toc # Remove except syntax
-	sed -i '/UPC_EAN/d' $1.toc # Remove except syntax
+	sed -i '/TOC_INFO1/d' "$1.toc" # Remove except syntax
+	sed -i '/UPC_EAN/d' "$1.toc" # Remove except syntax
 	#    SIZE_INFO { 0,  1,  9,  0, 12, 14,  0,  0,  0, 32,  0,  0,
 	#                1,  0,  0,  0,  0,  0, 10,  3, 71,  0,  0,  0,
 	#                0,  0,  0,  0,  9,  0,  0,  0,  0,  0,  0,  0}
-	sed -E -i '/SIZE_INFO \{/{:a;N;/\}/!ba};/SIZE_INFO \{.*\}/d' $1.toc
-	sed -E -i '/LANGUAGE [0-9]+ \{/{:a;N;/\}/!ba};s/\s+ISRC "[^"]+"//' $1.toc # Remove duplicated ISRC in LANGUAGE block
-	sed -i 's/　/ /g' $1.toc # Replace two-byte space with one-byte space
-	sed -i 's/／/\//g' $1.toc # Replace two-byte slash with one-byte slash
-	cueconvert $1.toc $1.cue
+	sed -E -i '/SIZE_INFO \{/{:a;N;/\}/!ba};/SIZE_INFO \{.*\}/d' "$1.toc"
+	sed -E -i '/LANGUAGE [0-9]+ \{/{:a;N;/\}/!ba};s/\s+ISRC "[^"]+"//' "$1.toc" # Remove duplicated ISRC in LANGUAGE block
+	sed -i 's/　/ /g' "$1.toc" # Replace two-byte space with one-byte space
+	sed -i 's/／/\//g' "$1.toc" # Replace two-byte slash with one-byte slash
+	cueconvert "$1.toc" "$1.cue"
 }
 
 get_artist_and_album_info_from_cue() {
@@ -89,7 +91,9 @@ ARTIST_ALBUM_DIR_OPTION=0
 
 SCRIPT_PARENT=`dirname ${0}`
 
-while getopts "h?ups:d:r:" opt; do
+CDRDAO_DRIVER=""
+
+while getopts "h?upzxs:d:r:" opt; do
 	case "${opt}" in
 		h|\?)
 			show_help
@@ -109,6 +113,13 @@ while getopts "h?ups:d:r:" opt; do
 			;;
 		u)
 			DEFAULT_ENCODING="utf-8"
+			;;
+		x)
+			CDRDAO_DRIVER="--driver generic-mmc:0x1"
+			;;
+		z)
+			CDRDAO_DRIVER="--driver generic-mmc:0x3"
+			;;
 	esac
 done
 
@@ -132,11 +143,15 @@ echo "[INFO] 1/6: Extract CD to ${SAVE_PATH}/${DUMPFILENAME}"
 
 if [ -z "${RESUME_FILE}" ]; then
 
-	cdrdao read-cd --device ${DEVICE_FILE} --datafile ${SAVE_PATH}/${DUMPFILENAME}.{bin,toc}
+	cdrdao read-cd --device ${DEVICE_FILE} ${CDRDAO_DRIVER} --datafile "${SAVE_PATH}/${DUMPFILENAME}".{bin,toc}
+
+fi
+
+if ! [[ -e "${SAVE_PATH}/${DUMPFILENAME}.cue" ]]; then
 
 	echo "[INFO] 2/6: Convert TOC to CUE sheet (from CD)"
 
-	fix_toc_and_convert_cue ${SAVE_PATH}/${DUMPFILENAME}
+	fix_toc_and_convert_cue "${SAVE_PATH}/${DUMPFILENAME}"
 fi
 
 echo "[INFO] 2/6: Check CUE sheet"
@@ -167,10 +182,6 @@ if [[ -z "${ARTIST}" ]] || [[ -z "${ALBUM}" ]]; then
 		fix_toc_and_convert_cue "${SAVE_PATH}/${DUMPFILENAME}"
 
 		get_artist_and_album_info_from_cue "${SAVE_PATH}/${DUMPFILENAME}.cue" "utf-8"
-
-		echo "${ARTIST}"
-
-		cat "${SAVE_PATH}/${DUMPFILENAME}.cue"
 
 		if [ -z "${ARTIST}" ]; then
 
