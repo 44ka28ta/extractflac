@@ -147,6 +147,15 @@ if [ -z "${RESUME_FILE}" ]; then
 
 fi
 
+if ! [[ -e "${SAVE_PATH}/${DUMPFILENAME}.toc" ]]; then
+
+	echo "[INFO] 1/6: Extract TOC from ${SAVE_PATH}/${DUMPFILENAME}"
+
+	cdrdao read-toc --device ${DEVICE_FILE} ${CDRDAO_DRIVER} "${SAVE_PATH}/${DUMPFILENAME}.toc"
+
+	sed -i -E -e "s/FILE\ \"data\.wav\"/FILE\ \"${DUMPFILENAME}\.bin\"/g" "${SAVE_PATH}/${DUMPFILENAME}.toc"
+fi
+
 if ! [[ -e "${SAVE_PATH}/${DUMPFILENAME}.cue" ]]; then
 
 	echo "[INFO] 2/6: Convert TOC to CUE sheet (from CD)"
@@ -228,7 +237,7 @@ else
 	FLACFILENAME=`echo "${ARTIST} - ${ALBUM} Disc ${DISCNUMBER}" | sed 's/\//#/g'`
 fi
 
-sed -i -E -e "s/FILE\ \".*${DUMPFILENAME}\.bin/FILE\ \"${FLACFILENAME}\.flac/" "${SAVE_PATH}/${DUMPFILENAME}.cue"
+sed -i -E -e "s/FILE\ \".*${DUMPFILENAME}\.bin\"/FILE\ \"${FLACFILENAME}\.flac\"/" "${SAVE_PATH}/${DUMPFILENAME}.cue"
 mv "${SAVE_PATH}/${DUMPFILENAME}.cue" "${SAVE_PATH}/${FLACFILENAME}.cue"
 
 echo "[INFO] 3/6: Convert Bin to WAV"

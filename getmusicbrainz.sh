@@ -40,7 +40,7 @@ get_artists() {
 
 	get_element_with_xpath $1 "//defaultns:release[@id=\"$2\"]/defaultns:artist-credit/defaultns:name-credit/defaultns:name" "<name>" "<\/name>" ARTISTRAW 
 
-	if [ ${#ARTISTRAW[@]} -eq 0 ]; then
+	if [ -z "${ARTISTRAW[@]}" ]; then
 
 		get_element_with_xpath $1 "//defaultns:release[@id=\"$2\"]/defaultns:artist-credit/defaultns:name-credit/@joinphrase" "^\s*joinphrase=\"" "\"" JOINPHRASES
 		get_element_with_xpath $1 "//defaultns:release[@id=\"$2\"]/defaultns:artist-credit/descendant::defaultns:artist/defaultns:name" "<name>" "<\/name>" ARTISTRAW 
