@@ -11,7 +11,9 @@ show_help() {
 	echo "-r: resume extraction" >&2
 	echo "-u: UTF-8 encoding of CUE sheet from CDDB, MusicBrainz for the resume and default CD-TEXT (the default encoding is Latin1 (ISO-8859-1))" >&2
 	echo "-x: enable --driver generic-mmc:0x1 option for cdrdao" >&2
+	echo "-y: enable --driver generic-mmc:0x80000 option for cdrdao" >&2
 	echo "-z: enable --driver generic-mmc:0x3 option for cdrdao" >&2
+	echo "-0: enable --driver generic-mmc:0x100000 option for cdrdao" >&2
 }
 
 ARTIST=''
@@ -34,6 +36,9 @@ fix_toc_and_convert_cue() {
 	#                0,  0,  0,  0,  9,  0,  0,  0,  0,  0,  0,  0}
 	sed -E -i '/SIZE_INFO \{/{:a;N;/\}/!ba};/SIZE_INFO \{.*\}/d' "$1.toc"
 	sed -E -i '/LANGUAGE [0-9]+ \{/{:a;N;/\}/!ba};s/\s+ISRC "[^"]+"//' "$1.toc" # Remove duplicated ISRC in LANGUAGE block
+	#    GENRE { 0,  0, 79, 116, 104, 101, 114,  0}
+	sed -E -i '/GENRE \{.*\}/d' "$1.toc"
+	sed -E -i '/GENRE \{/{:a;N;/\}/!ba};/GENRE \{.*\}/d' "$1.toc"
 	sed -i 's/　/ /g' "$1.toc" # Replace two-byte space with one-byte space
 	sed -i 's/／/\//g' "$1.toc" # Replace two-byte slash with one-byte slash
 	cueconvert "$1.toc" "$1.cue"
@@ -93,7 +98,7 @@ SCRIPT_PARENT=`dirname ${0}`
 
 CDRDAO_DRIVER=""
 
-while getopts "h?upzxs:d:r:" opt; do
+while getopts "h?upzx0ys:d:r:" opt; do
 	case "${opt}" in
 		h|\?)
 			show_help
@@ -117,9 +122,14 @@ while getopts "h?upzxs:d:r:" opt; do
 		x)
 			CDRDAO_DRIVER="--driver generic-mmc:0x1"
 			;;
+		y)
+			CDRDAO_DRIVER="--driver generic-mmc:0x80000"
+			;;
 		z)
 			CDRDAO_DRIVER="--driver generic-mmc:0x3"
 			;;
+		0)
+			CDRDAO_DRIVER="--driver generic-mmc:0x100000"
 	esac
 done
 
@@ -287,7 +297,7 @@ if ! [[ -z "${CATALOG}" ]] ; then
 	metaflac --set-tag="CATALOGNUMBER=${CATALOG}" "${SAVE_PATH}/${FLACFILENAME}.flac"
 fi
 
-echo "[INFO] 5/6: Finalize temporarl data"
+echo "[INFO] 5/6: Finalize temporal data"
 
 rm "${SAVE_PATH}/${FLACFILENAME}.wav"
 rm "${SAVE_PATH}/${DUMPFILENAME}.toc"

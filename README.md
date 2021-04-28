@@ -10,6 +10,10 @@ This script resolve CD Infomation by using following CDDB servers:
 * gnudb.gnudb.org
 * freedb.dbpoweramp.com
 
+Further, this project has following helper scripts:
+
+* `renameflac.sh`
+
 Dependencies
 =====
 
