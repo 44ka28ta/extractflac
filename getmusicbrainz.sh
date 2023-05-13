@@ -19,7 +19,7 @@ bye
 EOF
 )
 
-	ELEMENTSTR="`echo "${ELEMENTSTR}" | grep -a -E "$3" | sed -E "s/^.*$3(.*)$4.*$/\1/"`"
+	ELEMENTSTR=`echo "${ELEMENTSTR}" | grep -a -E "$3" | sed -E "s/^.*$3(.*)$4.*$/\1/"`
 
 	# Fifth argument is defined return value.
 	local -n ELEMENTS=$5

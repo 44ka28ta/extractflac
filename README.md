@@ -13,10 +13,12 @@ This script resolve CD Infomation by using following CDDB servers:
 Further, this project has following helper scripts:
 
 * `renameflac.sh`
+* `getcoverart.sh`
 
 Dependencies
 =====
 
+* curl
 * cdrdao
 * SoX
 * flac
@@ -32,7 +34,7 @@ Usage
 =====
 
 <pre><code>Create FLAC audio with CUE sheet from CD
-extractflac.sh [-h] [-p] [-u] [-x] [-z] [-s SAVE_PATH] [-r RESUME_FILE] -d DEVICE_FILE
+extractflac.sh [-h] [-p] [-u] [-x] [-y] [-z] [-0] [-s SAVE_PATH] [-r RESUME_FILE] -d DEVICE_FILE
 
 -h: show this.
 -p: option of making artist / album directory.
@@ -41,4 +43,6 @@ extractflac.sh [-h] [-p] [-u] [-x] [-z] [-s SAVE_PATH] [-r RESUME_FILE] -d DEVIC
 -r: resume extraction
 -u: UTF-8 encoding of CUE sheet from CDDB, MusicBrainz for the resume and default CD-TEXT (the default encoding is Latin1 (ISO-8859-1))
 -x: enable --driver generic-mmc:0x1 option for cdrdao
--z: enable --driver generic-mmc:0x3 option for cdrdao</code></pre>
+-y: enable --driver generic-mmc:0x80000 option for cdrdao
+-z: enable --driver generic-mmc:0x3 option for cdrdao
+-0: enable --driver generic-mmc:0x100000 option for cdrdao</code></pre>
