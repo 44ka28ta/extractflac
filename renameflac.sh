@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 show_help() {
 	echo "Rename FLAC audio with Vorbis comments and CUE sheet" >&2
@@ -85,7 +85,7 @@ if [ ! -e "${CUE_FILE_PATH}" ]; then
 	exit 1
 fi
 
-PRE_ARTIST=$(metaflac "${FILE_PATH}" --show-tag="ARTIST" | sed "s/^ARTIST=//")
+#PRE_ARTIST=$(metaflac "${FILE_PATH}" --show-tag="ARTIST" | sed "s/^ARTIST=//")
 
 if [ -n "${RENAMING_ARTIST}" ]; then
 
@@ -98,6 +98,7 @@ fi
 
 PRE_ALBUM=$(metaflac "${FILE_PATH}" --show-tag="ALBUM" | sed "s/^ALBUM=//")
 PRE_DISCNUMBER=$(metaflac "${FILE_PATH}" --show-tag="DISCNUMBER" | sed "s/^DISCNUMBER=//")
+PRE_TOTALNUMBER=$(metaflac "${FILE_PATH}" --show-tag="TOTALDISCS" | sed "s/^TOTALDISCS=//")
 
 if [ -n "${RENAMING_ALBUM}" ]; then
 
@@ -141,8 +142,10 @@ if [ -n "${UPDATE_TOTAL_DISC_NUMBER}" ]; then
 fi
 
 if [ -n "${PRE_DISCNUMBER}" ]; then
+	if [ "${PRE_DISCNUMBER}" != "${PRE_TOTALNUMBER}" ]; then
 
-	RENEW_FILE_NAME_WITHOUT_EXT="${RENEW_FILE_NAME_WITHOUT_EXT} Disc ${PRE_DISCNUMBER}"
+		RENEW_FILE_NAME_WITHOUT_EXT="${RENEW_FILE_NAME_WITHOUT_EXT} Disc ${PRE_DISCNUMBER}"
+	fi
 fi
 
 RENEW_CUE_FILE_NAME=`echo "${RENEW_FILE_NAME_WITHOUT_EXT}.cue" | sed 's/\//#/g'`
@@ -198,8 +201,19 @@ if [ -n "${CUE_FILE_PATH}" ]; then
 
 	sed -i -E -e "s/FILE\ \".*\"/FILE\ \"${RENEW_FILE_NAME}\"/" "${CUE_FILE_PATH}"
 
-	sed -i -E -e "s/PERFORMER \"${PRE_ARTIST}\"/PERFORMER \"${RENAMING_ARTIST}\"/g" "${CUE_FILE_PATH}"
+	sed -i -E -e "s/PERFORMER \".*\"/PERFORMER \"${RENAMING_ARTIST}\"/g" "${CUE_FILE_PATH}"
 	sed -i -E -e "0,/TITLE \".*\"/{s/TITLE \".*\"/TITLE \"${SED_RENAMING_ALBUM}\"/}" "${CUE_FILE_PATH}"
+
+	if [ -n "${PRE_DISCNUMBER}" ]; then
+
+		sed -i -E -e "s/REM DISCNUMBER .*/REM DISCNUMBER ${PRE_DISCNUMBER}/" "${CUE_FILE_PATH}"
+	fi
+
+	if [ -n "${UPDATE_TOTAL_DISC_NUMBER}" ]; then
+
+		sed -i -E -e "s/REM TOTALDISCS .*/REM TOTALDISCS ${UPDATE_TOTAL_DISC_NUMBER}/" "${CUE_FILE_PATH}"
+	fi
+
 
 
 	if [ ! "${CUE_FILE_PATH}" = "${RENEW_CUE_PATH}" ]; then
@@ -247,8 +261,13 @@ if [ ${WITH_DIR_STRUCTURE} -eq 1 ]; then
 
 		if [ -d "${BASE_DIR_PATH}/${RENAMING_ARTIST_DIR}" ]; then
 
-			mv "${ARTIST_DIR_PATH}/${RENAMING_ALBUM_DIR}" "${BASE_DIR_PATH}/${RENAMING_ARTIST_DIR}"
-			#rm -r "${ARTIST_DIR_PATH}"
+			if [ -d "${BASE_DIR_PATH}/${RENAMING_ARTIST_DIR}/${RENAMING_ALBUM_DIR}" ]; then
+
+				find "${ARTIST_DIR_PATH}/${RENAMING_ALBUM_DIR}" -mindepth 1 -print0 | xargs -0 -I {} mv -n {} "${BASE_DIR_PATH}/${RENAMING_ARTIST_DIR}/${RENAMING_ALBUM_DIR}"
+			else
+				mv "${ARTIST_DIR_PATH}/${RENAMING_ALBUM_DIR}" "${BASE_DIR_PATH}/${RENAMING_ARTIST_DIR}"
+				#rm -r "${ARTIST_DIR_PATH}"
+			fi
 		else
 			mv "${ARTIST_DIR_PATH}" "${BASE_DIR_PATH}/${RENAMING_ARTIST_DIR}"
 		fi

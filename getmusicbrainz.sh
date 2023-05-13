@@ -45,17 +45,39 @@ get_artists() {
 		get_element_with_xpath $1 "//defaultns:release[@id=\"$2\"]/defaultns:artist-credit/defaultns:name-credit/@joinphrase" "^\s*joinphrase=\"" "\"" JOINPHRASES
 		get_element_with_xpath $1 "//defaultns:release[@id=\"$2\"]/defaultns:artist-credit/descendant::defaultns:artist/defaultns:name" "<name>" "<\/name>" ARTISTRAW 
 
-		ARTISTSTR=${ARTISTRAW[0]}
+		LOWERBOUNDJOININDEX=0
+
+		while [ -z "${ARTISTRAW[${LOWERBOUNDJOININDEX}]}" ] && [ ${LOWERBOUNDJOININDEX} -lt ${#ARTISTRAW[@]} ]; do
+			LOWERBOUNDJOININDEX=$((${LOWERBOUNDJOININDEX}+1))
+		done
+
+		ARTISTSTR=${ARTISTRAW[${LOWERBOUNDJOININDEX}]}
 
 		if [ ${#JOINPHRASES[@]} -gt 0 ]; then
 
-			UPPERBOUNDJOININDEX=$((${#JOINPHRASES[@]}-1))
+			if [ ${#JOINPHRASES[@]} -ne 1 ]; then
 
-			for PHRASEINDEX in `seq 0 ${UPPERBOUNDJOININDEX}`; do
+				UPPERBOUNDJOININDEX=$((${#JOINPHRASES[@]}-1))
 
-				NEXTRAW=$((${PHRASEINDEX}+1))
-				ARTISTSTR=${ARTISTSTR}${JOINPHRASES[${PHRASEINDEX}]}${ARTISTRAW[${NEXTRAW}]}
-			done
+				for PHRASEINDEX in `seq 0 ${UPPERBOUNDJOININDEX}`; do
+
+					NEXTRAW=$((${PHRASEINDEX}+1))
+					ARTISTSTR=${ARTISTSTR}${JOINPHRASES[${PHRASEINDEX}]}${ARTISTRAW[${NEXTRAW}]}
+				done
+			else
+
+				UPPERBOUNDJOININDEX=$((${#ARTISTRAW[@]}-1))
+
+
+				#echo "${LOWERBOUNDJOININDEX} ${UPPERBOUNDJOININDEX}"
+
+
+				for PHRASEINDEX in `seq $((${LOWERBOUNDJOININDEX}+1)) ${UPPERBOUNDJOININDEX}`; do
+
+					ARTISTSTR=${ARTISTSTR}${JOINPHRASES[0]}${ARTISTRAW[${PHRASEINDEX}]}
+				done
+			fi
+
 		fi
 	else
 		ARTISTSTR=${ARTISTRAW[0]}
@@ -293,6 +315,7 @@ if [ -z "${CATALOGS[${SELECTEDNUMBER}]}" ]; then
 else
 	if [ "${#CATALOGS[${SELECTEDNUMBER}]}" -lt 13 ]; then
 
+		#075678133725 is error
 		MODCATALOGS=`printf "%013d" ${CATALOGS[${SELECTEDNUMBER}]}`
 	else
 		MODCATALOGS="${CATALOGS[${SELECTEDNUMBER}]}"

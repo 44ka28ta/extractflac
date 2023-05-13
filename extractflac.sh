@@ -1,8 +1,8 @@
-#/bin/bash
+#!/bin/bash
 
 show_help() {
 	echo "Create FLAC audio with CUE sheet from CD" >&2
-	echo "$0 [-h] [-p] [-u] [-x] [-z] [-s SAVE_PATH] [-r RESUME_FILE] -d DEVICE_FILE" >&2
+	echo "$0 [-h] [-p] [-u] [-x] [-y] [-z] [-0] [-s SAVE_PATH] [-r RESUME_FILE] -d DEVICE_FILE" >&2
 	echo "" >&2
 	echo "-h: show this." >&2
 	echo "-p: option of making artist / album directory." >&2
@@ -35,12 +35,13 @@ fix_toc_and_convert_cue() {
 	#                1,  0,  0,  0,  0,  0, 10,  3, 71,  0,  0,  0,
 	#                0,  0,  0,  0,  9,  0,  0,  0,  0,  0,  0,  0}
 	sed -E -i '/SIZE_INFO \{/{:a;N;/\}/!ba};/SIZE_INFO \{.*\}/d' "$1.toc"
-	sed -E -i '/LANGUAGE [0-9]+ \{/{:a;N;/\}/!ba};s/\s+ISRC "[^"]+"//' "$1.toc" # Remove duplicated ISRC in LANGUAGE block
+	sed -E -i '/LANGUAGE [0-9]+ \{/{:a;N;/\}/!ba};s/\s+ISRC "[^"]*"//' "$1.toc" # Remove duplicated ISRC in LANGUAGE block
 	#    GENRE { 0,  0, 79, 116, 104, 101, 114,  0}
 	sed -E -i '/GENRE \{.*\}/d' "$1.toc"
 	sed -E -i '/GENRE \{/{:a;N;/\}/!ba};/GENRE \{.*\}/d' "$1.toc"
 	sed -i 's/　/ /g' "$1.toc" # Replace two-byte space with one-byte space
 	sed -i 's/／/\//g' "$1.toc" # Replace two-byte slash with one-byte slash
+	_DEBUG_CONVERT=`printf "$(cat "$1.toc")\n" > "$1.toc"` # Convert escaped characters to UTF-8
 	cueconvert "$1.toc" "$1.cue"
 }
 
@@ -155,6 +156,12 @@ if [ -z "${RESUME_FILE}" ]; then
 
 	cdrdao read-cd --device ${DEVICE_FILE} ${CDRDAO_DRIVER} --datafile "${SAVE_PATH}/${DUMPFILENAME}".{bin,toc}
 
+fi
+
+if [ $? -ne 0 ]; then
+
+	echo "CD Read Error." 
+	exit -1
 fi
 
 if ! [[ -e "${SAVE_PATH}/${DUMPFILENAME}.toc" ]]; then
