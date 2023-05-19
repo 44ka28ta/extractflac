@@ -29,9 +29,10 @@ show_help() {
         echo "Get the cover art image file from Amazon.co.jp or Discorgs" >&2
         echo "$0 [-h] [-d] [-f FILENAME] -c CODE" >&2
         echo "" >&2
-	echo "-c: specify the commodity code. CODE is in the case of https://www.amazon.co.jp/dp/CODE or https://www.discogs.com/ja/release/CODE-XXX." >&2
+	echo "-c: specify the commodity code. CODE is in the case of https://www.amazon.co.jp/dp/CODE, https://www.discogs.com/ja/release/CODE-XXX or https://en.wikipedia.org/wiki/CODE ." >&2
 	echo "-f: specify the name of downloaded cover art file." >&2
 	echo "-d: specify Discogs as the image source." >&2
+	echo "-w: specify Wikipedia as the image source." >&2
         echo "-h: show this." >&2
 }
 
@@ -39,7 +40,7 @@ FILE_NAME='folder.jpg'
 CODE=''
 ALTIMAGESRC=''
 
-while getopts "h?f:c:d" opt; do
+while getopts "h?f:c:dw" opt; do
 	case "${opt}" in
 		h|\?)
 			show_help
@@ -53,6 +54,9 @@ while getopts "h?f:c:d" opt; do
 			;;
 		d)
 			ALTIMAGESRC='https://www.discogs.com/ja/release/'
+			;;
+		w)
+			ALTIMAGESRC='https://en.wikipedia.org/wiki/'
 			;;
 	esac
 done
