@@ -72,15 +72,34 @@ USER_AGENT="Mozilla/5.0 (X11; Linux i586; rv:31.0) Gecko/20100101 Firefox/31.0"
 ACCEPT_ENCODING="gzip,deflate"
 
 if [ -z "${ALTIMAGESRC}" ]; then
-	AMAZON_SOURCE='https://www.amazon.co.jp/dp/'
+	AMAZON_DOMAIN='www.amazon.co.jp'
+	AMAZON_SOURCE="https://${AMAZON_DOMAIN}/dp/"
+	AMAZON_COOKIE=${CODE}'.cookie'
 
-	curl -L -X GET ${AMAZON_SOURCE}${CODE} -H "User-Agent: ${USER_AGENT}, Accept-Encoding:${ACCEPT_ENCODING}" | xmllint --html --format - 2> /dev/null > ${COMMODITYXMLNAME}
+	curl -c ${AMAZON_COOKIE} -L -X GET ${AMAZON_SOURCE}${CODE} -H "User-Agent: ${USER_AGENT}, Accept-Encoding:${ACCEPT_ENCODING}" | xmllint --html --format - 2> /dev/null > ${COMMODITYXMLNAME}
 
 	IMAGE_URL=()
 
-	get_src_from_specific_element_with_xpath ${COMMODITYXMLNAME} 'img[@id="landingImage"]' 'src' IMAGE_URL
+	get_src_from_specific_element_with_xpath ${COMMODITYXMLNAME} 'span[@id="black-curtain-yes-button"]//a' 'href' IMAGE_URL
+
+	if [[ "${IMAGE_URL[0]}" == *"bye"* ]]; then
+
+		IMAGE_URL=()
+		get_src_from_specific_element_with_xpath ${COMMODITYXMLNAME} 'img[@id="landingImage"]' 'src' IMAGE_URL
+	else
+		echo ${IMAGE_URL[@]}
+		curl -b ${AMAZON_COOKIE} -L -X GET "https://${AMAZON_DOMAIN}${IMAGE_URL[0]}" -H "User-Agent: ${USER_AGENT}, Accept-Encoding:${ACCEPT_ENCODING}" | xmllint --html --format - 2> /dev/null > ${COMMODITYXMLNAME}
+
+		IMAGE_URL=() # Clear
+		get_src_from_specific_element_with_xpath ${COMMODITYXMLNAME} 'img[@id="landingImage"]' 'src' IMAGE_URL
+		echo ${IMAGE_URL[@]}
+	fi
 
 	curl -o ${FILE_NAME} $(modify_amazon_image_url ${IMAGE_URL[0]})
+
+
+	rm ${AMAZON_COOKIE}
+
 else
 	curl -L -X GET ${ALTIMAGESRC}${CODE} -H "User-Agent: ${USER_AGENT}, Accept-Encoding:${ACCEPT_ENCODING}" | xmllint --html --format - 2> /dev/null > ${COMMODITYXMLNAME}
 
