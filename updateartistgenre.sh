@@ -39,10 +39,10 @@ fi
 
 if [ -n "${UPDATE_GENRE}" ]; then
 
+	# For FLAC audio.
 	find "${DIR_PATH}" -type f -regex ".*\.flac$" -print0 | xargs -0 -I {} sh ${SCRIPT_DIR}/renameflac.sh -g "${UPDATE_GENRE}" -f "${WORKING_DIR}/{}"
+	# For MP3 audio.
+	find "${DIR_PATH}" -type f -regex ".*\.mp3$" -print0 | xargs -0 -I {} sh -c 'mid3v2 -g "'${UPDATE_GENRE}'" "{}" && echo "{}: tag update succeeds." || echo "{}: tag update fails."'
 else
 	echo "No GENRE keyword."
-
-	show_help
-	exit 0
 fi

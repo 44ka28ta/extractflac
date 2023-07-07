@@ -116,7 +116,7 @@ fi
 
 RENEW_FILE_NAME_WITHOUT_EXT="${RENAMING_ARTIST} - ${RENAMING_ALBUM}"
 
-echo "From ${PRE_ARTIST} - ${PRE_ALBUM} to ${RENEW_FILE_NAME_WITHOUT_EXT}."
+echo "From ${PRE_ARTIST} - ${PRE_ALBUM} ${PRE_DISCNUMBER}/${PRE_TOTALNUMBER} to ${RENEW_FILE_NAME_WITHOUT_EXT} ${UPDATE_DISC_NUMBER}/${UPDATE_TOTAL_DISC_NUMBER}."
 
 if [ -n "${UPDATE_DISC_NUMBER}" ]; then
 
@@ -141,15 +141,17 @@ if [ -n "${UPDATE_TOTAL_DISC_NUMBER}" ]; then
 	metaflac "${FILE_PATH}" --remove-tag="TOTALDISCS"
 	metaflac "${FILE_PATH}" --set-tag="TOTALDISCS=${UPDATE_TOTAL_DISC_NUMBER}"
 
-	if [ $? -ne 0 ]; then
+	if [ $? -eq 0 ]; then
 
+		PRE_TOTALNUMBER=${UPDATE_TOTAL_DISC_NUMBER}
+	else
 		echo "Invalid specified total disk number." >&2
 		exit 1
 	fi
 fi
 
-if [ -n "${PRE_DISCNUMBER}" ]; then
-	if [ "${PRE_DISCNUMBER}" != "${PRE_TOTALNUMBER}" ]; then
+if [ -n "${PRE_DISCNUMBER}" ] && [ -n "${PRE_TOTALNUMBER}" ]; then
+	if [ 1 -lt "${PRE_TOTALNUMBER}" ]; then
 
 		RENEW_FILE_NAME_WITHOUT_EXT="${RENEW_FILE_NAME_WITHOUT_EXT} Disc ${PRE_DISCNUMBER}"
 	fi
@@ -230,13 +232,13 @@ if [ -n "${CUE_FILE_PATH}" ]; then
 		fi
 	fi
 
-	if [ -n "${UPDATE_TOTAL_DISC_NUMBER}" ]; then
+	if [ -n "${PRE_TOTALNUMBER}" ]; then
 
-		sed -i -E -e "s/REM TOTALDISCS .*/REM TOTALDISCS ${UPDATE_TOTAL_DISC_NUMBER}/" "${CUE_FILE_PATH}"
+		sed -i -E -e "s/REM TOTALDISCS .*/REM TOTALDISCS ${PRE_TOTALNUMBER}/" "${CUE_FILE_PATH}"
 
 		if [ -z "`grep -R 'REM TOTALDISCS' "${CUE_FILE_PATH}"`"  ]; then
 
-			sed -i -E -e "0,/PERFORMER/a REM TOTALDISCS ${UPDATE_TOTAL_DISC_NUMBER}" "${CUE_FILE_PATH}"
+			sed -i -E -e "0,/PERFORMER/a REM TOTALDISCS ${PRE_TOTALNUMBER}" "${CUE_FILE_PATH}"
 		fi
 	fi
 

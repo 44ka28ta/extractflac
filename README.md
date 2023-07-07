@@ -30,6 +30,7 @@ Dependencies
 * base64
 * xmllint
 * iconv
+* mid3v2 (python3-mutagen)
 
 Usage
 =====
