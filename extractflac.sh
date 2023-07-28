@@ -31,6 +31,7 @@ fix_toc_and_convert_cue() {
 
 	sed -i '/TOC_INFO1/d' "$1.toc" # Remove except syntax
 	sed -i '/UPC_EAN/d' "$1.toc" # Remove except syntax
+	sed -i '/RESERVED4/d' "$1.toc" # Remove except syntax: RESERVED4 "Mastered using SADiE v5.6.2"
 	#    SIZE_INFO { 0,  1,  9,  0, 12, 14,  0,  0,  0, 32,  0,  0,
 	#                1,  0,  0,  0,  0,  0, 10,  3, 71,  0,  0,  0,
 	#                0,  0,  0,  0,  9,  0,  0,  0,  0,  0,  0,  0}
@@ -184,7 +185,7 @@ echo "[INFO] 2/6: Check CUE sheet"
 
 get_artist_and_album_info_from_cue "${SAVE_PATH}/${DUMPFILENAME}.cue" ${DEFAULT_ENCODING}
 
-if [[ -z "${ARTIST}" ]] || [[ -z "${ALBUM}" ]]; then
+if [[ -z "$(echo ${ARTIST} | tr -d '[:space:]')" ]] || [[ -z "$(echo ${ALBUM} | tr -d '[:space:]')" ]]; then
 
 	echo "[INFO] 2/6: Proceed to clean CUE sheet"
 
