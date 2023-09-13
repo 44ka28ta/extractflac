@@ -2,7 +2,7 @@
 
 show_help() {
 	echo "Rename FLAC audio with Vorbis comments and CUE sheet" >&2
-	echo "$0 [-h] [-d] [-l] [-a ARTIST_NAME] [-t ALBUM_TITLE] [-n DISC_NUMBER] [-u TOTAL_DISC_NUMBER] [-g GENRE_NAME] -f FILE_PATH" >&2
+	echo "$0 [-h] [-d] [-l] [-a ARTIST_NAME] [-t ALBUM_TITLE] [-n DISC_NUMBER] [-u TOTAL_DISC_NUMBER] [-g GENRE_NAME] [-y RELEASED_YEAR] -f FILE_PATH" >&2
 	echo "" >&2
 	echo "-h: show this." >&2
 	echo "-a: renaming artist name" >&2
@@ -10,6 +10,7 @@ show_help() {
 	echo "-f: file path" >&2
 	echo "-n: disc number" >&2
 	echo "-u: total disc number" >&2
+	echo "-y: released year" >&2
 	echo "-d: renaming with the directory structure"
 	echo "-l: TITLE entries from captal to lower case"
 	echo "-g: add or update a genre entry"
@@ -23,7 +24,7 @@ TITLE_TO_CAMEL_CASE=0
 
 WORKING_DIR="`pwd`"
 
-while getopts "h?a:t:f:n:u:g:dl" opt; do
+while getopts "h?a:t:f:n:u:g:y:dl" opt; do
 	case "${opt}" in
 		h|\?)
 			show_help
@@ -46,6 +47,9 @@ while getopts "h?a:t:f:n:u:g:dl" opt; do
 			;;
 		g)
 			UPDATE_GENRE=${OPTARG}
+			;;
+		y)
+			RELEASED_YEAR=${OPTARG}
 			;;
 		d)
 			WITH_DIR_STRUCTURE=1
@@ -165,6 +169,14 @@ if [ -n "${UPDATE_GENRE}" ]; then
 	metaflac "${FILE_PATH}" --set-tag="GENRE=${UPDATE_GENRE}"
 fi
 
+if [ -n "${RELEASED_YEAR}" ]; then
+
+	echo "[INFO] Update released year infomation"
+
+	metaflac "${FILE_PATH}" --remove-tag="DATE"
+	metaflac "${FILE_PATH}" --set-tag="DATE=${RELEASED_YEAR}"
+fi
+
 RENEW_CUE_FILE_NAME=`echo "${RENEW_FILE_NAME_WITHOUT_EXT}.cue" | sed 's/\//#/g'`
 RENEW_FILE_NAME=`echo "${RENEW_FILE_NAME_WITHOUT_EXT}.flac" | sed 's/\//#/g'`
 RENEW_XML_FILE_NAME=`echo "${RENEW_FILE_NAME_WITHOUT_EXT}.xml" | sed 's/\//#/g'`
@@ -252,6 +264,18 @@ if [ -n "${CUE_FILE_PATH}" ]; then
 			sed -i -E -e "0,/PERFORMER/s//REM GENRE \"${UPDATE_GENRE}\"\n&/" "${CUE_FILE_PATH}"
 		fi
 	fi
+
+	if [ -n "${RELEASED_YEAR}" ]; then
+
+		sed -i -E -e "s/REM DATE \".*\"/REM DATE \"${RELEASED_YEAR}\"/" "${CUE_FILE_PATH}"
+
+		if [ -z "`grep -R 'REM DATE' "${CUE_FILE_PATH}"`" ]; then
+
+			# Append new line
+			sed -i -E -e "0,/PERFORMER/s//REM DATE \"${RELEASED_YEAR}\"\n&/" "${CUE_FILE_PATH}"
+		fi
+	fi
+
 
 	if [ ! "${CUE_FILE_PATH}" = "${RENEW_CUE_PATH}" ]; then
 

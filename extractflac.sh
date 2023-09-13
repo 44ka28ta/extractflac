@@ -42,6 +42,7 @@ fix_toc_and_convert_cue() {
 	sed -E -i '/GENRE \{/{:a;N;/\}/!ba};/GENRE \{.*\}/d' "$1.toc"
 	sed -i 's/　/ /g' "$1.toc" # Replace two-byte space with one-byte space
 	sed -i 's/／/\//g' "$1.toc" # Replace two-byte slash with one-byte slash
+	sed -i 's/\\"/\\\\"/g' "$1.toc" # For escaping convertion of double quote
 	_DEBUG_CONVERT=`printf "$(cat "$1.toc")\n" > "$1.toc"` # Convert escaped characters to UTF-8
 	cueconvert "$1.toc" "$1.cue"
 }
