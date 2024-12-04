@@ -15,6 +15,7 @@ Further, this project has following helper scripts:
 * `renameflac.sh`
 * `getcoverart.sh`
 * `updateartistgenre.sh`
+* `addcoverart.sh`
 
 Dependencies
 =====
