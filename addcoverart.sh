@@ -57,12 +57,17 @@ _METADATA_PICTURE_BLOCK=`metaflac --list --block-type=PICTURE "${FILE_PATH}"`
 
 if [ -n "${_METADATA_PICTURE_BLOCK}" ]; then
 
+	echo "Already exist PICTURE block."
+
 	if [ ${FORCIBLY_UPDATE} -eq 1 ]; then
+
+		echo "Forcibly update PICTURE block."
 
 		metaflac --remove --block-type=PICTURE "${FILE_PATH}"
 		metaflac --import-picture-from="${PICTURE_PATH}" "${FILE_PATH}"
 	fi
 else
+	echo "Add PICTURE block."
 
 	metaflac --import-picture-from="${PICTURE_PATH}" "${FILE_PATH}"
 fi
